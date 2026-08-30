@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 export type AuthFormState = {
   error?: string;
   notice?: string;
-  fieldErrors?: Partial<Record<"email" | "password" | "displayName", string>>;
+  fieldErrors?: Partial<Record<"email" | "password" | "displayName" | "confirm", string>>;
 };
 
 const emailSchema = z.string().trim().min(1, "Enter your email").email("That email looks wrong");
@@ -162,4 +162,60 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/login");
+}
+
+const passwordSchema = z
+  .object({
+    password: z.string().min(8, "Use at least 8 characters"),
+    confirm: z.string(),
+  })
+  .refine((value) => value.password === value.confirm, {
+    message: "The two passwords do not match",
+    path: ["confirm"],
+  });
+
+/**
+ * Sets a new password for whoever is signed in.
+ *
+ * This serves both cases: someone who followed a reset link — the link signs
+ * them in, which is what makes the change possible — and someone already signed
+ * in who simply wants a different password. There is nothing to tell apart, so
+ * there is one action rather than two.
+ *
+ * No current-password check, because the reset case has no current password to
+ * offer. If that is ever wanted, Supabase's "Secure password change" setting is
+ * the place for it, not a field here.
+ */
+export async function updatePassword(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = passwordSchema.safeParse({
+    password: formData.get("password"),
+    confirm: formData.get("confirm"),
+  });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+
+  if (error) {
+    if (error.code === "same_password") {
+      return { fieldErrors: { password: "That is already your password." } };
+    }
+    if (error.code === "weak_password") {
+      return { fieldErrors: { password: "That password is too weak. Try a longer one." } };
+    }
+    // A recovery link that expired between opening it and submitting.
+    if (error.code === "session_not_found" || error.status === 401) {
+      return {
+        error: "Your session expired. Request a new reset link and try again.",
+      };
+    }
+    console.error("[auth] could not update password", error);
+    return { error: "Could not change the password. Try again." };
+  }
+
+  revalidatePath("/", "layout");
+  return { notice: "Your password has been changed." };
 }

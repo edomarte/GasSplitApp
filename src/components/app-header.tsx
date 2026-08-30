@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import type { SessionUser } from "@/lib/dal";
@@ -11,7 +13,13 @@ export function AppHeader({ user }: { user: SessionUser }) {
           Gas Split
         </span>
         <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+          <Link
+            href="/account/password"
+            className="hidden text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline sm:inline"
+            title="Change password"
+          >
+            {user.email}
+          </Link>
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="sm">
               Sign out
