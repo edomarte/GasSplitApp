@@ -255,7 +255,10 @@ from Authentication → Users when it stops being useful.
 ### Project configuration that the code depends on
 - `mailer_autoconfirm` is **on** (turned on 2026-08-30 to make testing cheap).
   Turn it back off before launch — see "Before launch".
-- Google is **not** enabled; the button hides itself while the provider is off.
+- Google **is** enabled. The button appeared on its own — `enabledProviders()`
+  asks the auth server rather than reading a build-time flag, so no redeploy was
+  needed. Google's authorised redirect URI must be Supabase's
+  `/auth/v1/callback`, not the app's `/auth/callback`.
 - Redirect URLs must include `/auth/callback` and `/auth/confirm`.
 - Resend is configured, but **`noreply.gassplitapp.com` is not verified**, so
   sends fail with 403. The pipeline itself is proven: a real invite was
@@ -367,9 +370,12 @@ were kept, the history page shows the breakdown, and a second fill settled the
 next period cleanly.
 
 Two rules this turn added:
-- **The settlement action must not `revalidatePath`.** Refreshing the route
-  unmounts the dialog along with the result the user is waiting to read. The
-  page is refreshed when they dismiss it instead.
+- **An action whose result is rendered from `useActionState` must not
+  `revalidatePath`.** Refreshing the route remounts the component and throws the
+  result away, so the work succeeds and the screen says nothing — which reads
+  as failure. It bit the settlement dialog in step 5 and the password form
+  after that, despite this note already existing. Refresh on dismissal, or not
+  at all when nothing on screen depends on the change.
 - **Every column of rounded figures goes through `apportion()`,** history
   included. It was fixed on the dashboard in step 4 and reintroduced here.
 
@@ -426,9 +432,14 @@ Verified in production: sign-in, the protected-route redirect with `?next=`, the
 members and history pages, invite creation with a correctly-formed link, the
 manifest and icons, and the mobile layout.
 
+### Password reset (done)
+`/account/password` serves both a reset link and a deliberate change: the link
+signs the user in, so by the time the page renders the two are the same thing.
+No current-password field, because the reset case has none to offer. The header
+links to it, and stays reachable on a phone — the email is hidden below `sm`,
+so it shows "Account" there instead.
+
 ### Still open
-- `/account/password`, the password-reset landing page, is referenced but not
-  built.
 - Emails reach only `edomarte@gmail.com` until a domain is verified with Resend.
   `noreply.gassplitapp.com` cannot be verified — the domain is not owned. A
   subdomain of a domain that is owned would cost nothing.
