@@ -1,5 +1,8 @@
 import "server-only";
 
+export * from "@/lib/email-templates";
+import type { OutgoingEmail } from "@/lib/email-templates";
+
 /**
  * Outbound email.
  *
@@ -15,13 +18,6 @@ export type EmailResult =
   | { status: "sent"; id: string }
   | { status: "skipped"; reason: "not_configured" }
   | { status: "failed"; reason: string };
-
-export type OutgoingEmail = {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-};
 
 export function isEmailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
@@ -66,60 +62,3 @@ export async function sendEmail(message: OutgoingEmail): Promise<EmailResult> {
   }
 }
 
-/** Escapes text destined for an HTML email body. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-export function inviteEmail({
-  carName,
-  invitedBy,
-  url,
-}: {
-  carName: string;
-  invitedBy: string;
-  url: string;
-}): Omit<OutgoingEmail, "to"> {
-  const safeCar = escapeHtml(carName);
-  const safeFrom = escapeHtml(invitedBy);
-  const safeUrl = escapeHtml(url);
-
-  return {
-    subject: `${invitedBy} invited you to share "${carName}" on Gas Split`,
-    text: [
-      `${invitedBy} invited you to join "${carName}" on Gas Split.`,
-      "",
-      "Gas Split tracks the kilometres each person drives in a shared car, and",
-      "splits the cost of each fill proportionally.",
-      "",
-      "Join here:",
-      url,
-      "",
-      "The link works once and expires in 7 days.",
-    ].join("\n"),
-    html: `
-      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0a0a0a">
-        <p style="font-size:18px;font-weight:600;margin:0 0 16px">
-          ${safeFrom} invited you to share &ldquo;${safeCar}&rdquo;
-        </p>
-        <p style="margin:0 0 16px;line-height:1.5;color:#525252">
-          Gas Split tracks the kilometres each person drives in a shared car, and splits
-          the cost of each fill proportionally.
-        </p>
-        <p style="margin:0 0 24px">
-          <a href="${safeUrl}"
-             style="display:inline-block;background:#0a0a0a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:500">
-            Join ${safeCar}
-          </a>
-        </p>
-        <p style="margin:0;font-size:13px;color:#737373">
-          The link works once and expires in 7 days. If you were not expecting this, ignore it.
-        </p>
-      </div>
-    `.trim(),
-  };
-}

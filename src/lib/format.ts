@@ -16,3 +16,28 @@ export function formatKm(km: number): string {
     .replace(/\B(?=(\d{3})+(?!\d))/g, NARROW_NBSP);
   return `${grouped}${NARROW_NBSP}km`;
 }
+
+/** Symbols for the currencies a shared car is plausibly billed in. */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: "€",
+  GBP: "£",
+  USD: "$",
+  CHF: "CHF ",
+};
+
+/**
+ * Money, from integer cents.
+ *
+ * Deliberately not `Intl.NumberFormat`: this runs on the server, and the
+ * server's locale is not the reader's. A settlement email that says "72,40" to
+ * one member and "72.40" to another, for the same fill, invites exactly the
+ * argument the app exists to prevent.
+ */
+export function formatMoney(cents: number, currency = "EUR"): string {
+  const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  const negative = cents < 0;
+  const absolute = Math.abs(Math.round(cents));
+  const units = Math.floor(absolute / 100);
+  const remainder = String(absolute % 100).padStart(2, "0");
+  return `${negative ? "-" : ""}${symbol}${units}.${remainder}`;
+}

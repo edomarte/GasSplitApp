@@ -340,4 +340,37 @@ actually charged are read back from `fill_shares`, so the two can never drift.
 Emails can only reach edomarte@gmail.com until a domain is verified with Resend
 — see "Before launch".
 
-Next step: step 5, turn 2 (fill dialog, history, settlement email).
+### Step 5, turn 2 — fill, history, notifications (done)
+
+```
+src/lib/money.ts                  parseMoneyToCents; "72,40" and "72.4" both work
+src/lib/email-templates.ts        pure, testable, no transport and no server-only
+src/lib/fills.ts                  reads settled fills back out of fill_shares
+src/app/cars/fill-actions.ts      recordFill(): settle, then notify
+src/components/cars/fill-dialog.tsx    live preview, then the recorded result
+src/app/cars/[carId]/history/     past fills and their breakdowns
+```
+
+Verified live on Fiat Panda: a 410 km period with a three-way split settled for
+€72.40 as €36.79 / €29.72 / €5.89, which is exact. The period closed, the trips
+were kept, the history page shows the breakdown, and a second fill settled the
+next period cleanly.
+
+Two rules this turn added:
+- **The settlement action must not `revalidatePath`.** Refreshing the route
+  unmounts the dialog along with the result the user is waiting to read. The
+  page is refreshed when they dismiss it instead.
+- **Every column of rounded figures goes through `apportion()`,** history
+  included. It was fixed on the dashboard in step 4 and reintroduced here.
+
+### Known gaps to close later
+- `/account/password` (the password-reset landing page) is referenced by
+  `requestPasswordReset` but not built yet.
+- Notifications reach nobody but `edomarte@gmail.com` until a domain is verified
+  with Resend. The failure is reported in the UI rather than hidden, and the
+  settlement itself is unaffected.
+- A settled fill cannot be undone. Deleting one would have to reopen the period,
+  and nothing does that yet.
+
+Next step: step 6 (history polish, PWA manifest, timezones, empty and error
+states), then step 7 (deploy).

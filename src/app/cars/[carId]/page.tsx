@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
+import { FillDialog } from "@/components/cars/fill-dialog";
 import { MemberAvatar } from "@/components/cars/member-avatar";
 import { PeriodSummary } from "@/components/cars/period-summary";
 import { TripDialog } from "@/components/cars/trip-dialog";
@@ -11,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCar } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
-import { formatKm } from "@/lib/format";
+import { getLatestFill } from "@/lib/fills";
+import { formatKm, formatMoney } from "@/lib/format";
 import { getOpenPeriod, listOpenTrips } from "@/lib/trips";
 
 type Props = { params: Promise<{ carId: string }> };
@@ -31,9 +33,10 @@ export default async function CarPage({ params }: Props) {
   const car = await getCar(carId);
   if (!car) notFound();
 
-  const [trips, period] = await Promise.all([
+  const [trips, period, latestFill] = await Promise.all([
     listOpenTrips(carId),
     getOpenPeriod(carId, car.members),
+    getLatestFill(carId, car.currency),
   ]);
 
   return (
@@ -53,9 +56,14 @@ export default async function CarPage({ params }: Props) {
               Odometer at {formatKm(car.lastOdometerKm)}
             </p>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/cars/${car.id}/members`}>Members</Link>
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/cars/${car.id}/history`}>History</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/cars/${car.id}/members`}>Members</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -65,16 +73,26 @@ export default async function CarPage({ params }: Props) {
             lastOdometerKm={car.lastOdometerKm}
             trigger={<Button className="w-full sm:w-auto">Add a trip</Button>}
           />
-          <Button variant="secondary" className="w-full sm:w-auto" disabled>
-            Add a fuel fill
-          </Button>
+          <FillDialog
+            carId={car.id}
+            currency={car.currency}
+            period={period}
+            lastOdometerKm={car.lastOdometerKm}
+            trigger={
+              <Button variant="secondary" className="w-full sm:w-auto">
+                Add a fuel fill
+              </Button>
+            }
+          />
         </div>
 
         <Card className="mt-4">
           <CardHeader>
             <CardTitle>Since the last fill</CardTitle>
             <CardDescription>
-              What each person will be charged when the tank is next filled.
+              {latestFill
+                ? `Since ${latestFill.paidByYou ? "your" : `${latestFill.paidByName}'s`} ${formatMoney(latestFill.totalCents, car.currency)} fill. What each person will be charged next time.`
+                : "What each person will be charged when the tank is next filled."}
             </CardDescription>
           </CardHeader>
           <CardContent>

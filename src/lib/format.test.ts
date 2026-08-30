@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatKm } from "./format";
+import { formatKm, formatMoney } from "./format";
 
 const NNBSP = "\u202f";
 
@@ -33,5 +33,35 @@ describe("formatKm", () => {
     const output = formatKm(92450);
     expect(output).not.toContain(",");
     expect(output).not.toContain(".");
+  });
+});
+
+describe("formatMoney", () => {
+  it("renders whole and part units", () => {
+    expect(formatMoney(7240)).toBe("€72.40");
+    expect(formatMoney(100)).toBe("€1.00");
+    expect(formatMoney(5)).toBe("€0.05");
+    expect(formatMoney(0)).toBe("€0.00");
+  });
+
+  it("keeps the trailing zero, which money always has", () => {
+    expect(formatMoney(250)).toBe("€2.50");
+    expect(formatMoney(200)).toBe("€2.00");
+  });
+
+  it("knows a few currencies and falls back to the code", () => {
+    expect(formatMoney(7240, "GBP")).toBe("£72.40");
+    expect(formatMoney(7240, "USD")).toBe("$72.40");
+    expect(formatMoney(7240, "SEK")).toBe("SEK 72.40");
+  });
+
+  it("does not depend on the host locale", () => {
+    // The bug this guards: a server set to it-IT rendering "72,40" in an email
+    // that another member reads as seventy-two thousand four hundred.
+    expect(formatMoney(7240)).not.toContain(",");
+  });
+
+  it("handles a negative amount", () => {
+    expect(formatMoney(-250)).toBe("-€2.50");
   });
 });
