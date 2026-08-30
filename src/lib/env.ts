@@ -40,6 +40,36 @@ export function supabaseEnv(): { url: string; publishableKey: string } {
   return { url, publishableKey };
 }
 
-export const siteUrl: string =
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+/**
+ * The public origin, with any trailing slash removed.
+ *
+ * Everything builds paths as `${siteUrl}/join/...`, so a value ending in a
+ * slash produces `https://host//join/...`. Vercel happens to redirect that to
+ * the right place, which hides the problem — but the same origin builds the
+ * auth `redirectTo` URLs, and Supabase matches those against an exact
+ * allowlist. `//auth/callback` is not `/auth/callback`, and sign-in would break
+ * in a way that looks nothing like a stray slash.
+ *
+ * Normalising here rather than asking people to type it correctly, because they
+ * will not, and the failure is silent.
+ */
+export function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function resolveSiteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL);
+  }
+  // The project's stable production domain. VERCEL_URL is per-deployment and
+  // changes every push, so an invite built from it dies on the next deploy.
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${normalizeOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL)}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${normalizeOrigin(process.env.VERCEL_URL)}`;
+  }
+  return "http://localhost:3000";
+}
+
+export const siteUrl: string = resolveSiteUrl();
