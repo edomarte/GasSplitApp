@@ -97,6 +97,21 @@ create trigger on_auth_user_updated
   after update of email, raw_user_meta_data on auth.users
   for each row execute function public.handle_user_update();
 
+-- The trigger only fires on new signups, so anyone who registered before this
+-- migration ran — while the project was being set up, say — would have no
+-- profile and be invisible to their own group. Backfill them.
+insert into public.profiles (id, email, display_name, avatar_url)
+select
+  u.id,
+  coalesce(u.email, ''),
+  left(public.derive_display_name(u.email, u.raw_user_meta_data), 60),
+  coalesce(
+    u.raw_user_meta_data ->> 'avatar_url',
+    u.raw_user_meta_data ->> 'picture'
+  )
+from auth.users u
+on conflict (id) do nothing;
+
 -- ---------------------------------------------------------------------------
 -- cars
 -- ---------------------------------------------------------------------------

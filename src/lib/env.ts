@@ -8,7 +8,7 @@
  */
 
 const URL_VAR = "NEXT_PUBLIC_SUPABASE_URL";
-const KEY_VAR = "NEXT_PUBLIC_SUPABASE_ANON_KEY";
+const KEY_VAR = "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY";
 
 function read(name: string): string | undefined {
   // Next.js inlines `process.env.NEXT_PUBLIC_*` only for statically written
@@ -16,7 +16,7 @@ function read(name: string): string | undefined {
   const value =
     name === URL_VAR
       ? process.env.NEXT_PUBLIC_SUPABASE_URL
-      : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      : process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   return value && value.length > 0 ? value : undefined;
 }
 
@@ -24,20 +24,20 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(read(URL_VAR) && read(KEY_VAR));
 }
 
-export function supabaseEnv(): { url: string; anonKey: string } {
+export function supabaseEnv(): { url: string; publishableKey: string } {
   const url = read(URL_VAR);
-  const anonKey = read(KEY_VAR);
+  const publishableKey = read(KEY_VAR);
 
-  if (!url || !anonKey) {
-    const missing = [!url && URL_VAR, !anonKey && KEY_VAR].filter(Boolean);
+  if (!url || !publishableKey) {
+    const missing = [!url && URL_VAR, !publishableKey && KEY_VAR].filter(Boolean);
     throw new Error(
       `Supabase is not configured: missing ${missing.join(" and ")}. ` +
         `Copy .env.local.example to .env.local and fill in the values from ` +
-        `your Supabase project (Settings -> API).`,
+        `your Supabase project (Settings -> API Keys).`,
     );
   }
 
-  return { url, anonKey };
+  return { url, publishableKey };
 }
 
 export const siteUrl: string =

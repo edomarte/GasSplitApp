@@ -11,10 +11,10 @@ import { supabaseEnv } from "@/lib/env";
  * token refresh happens in `src/proxy.ts` instead.
  */
 export async function createClient() {
-  const { url, anonKey } = supabaseEnv();
+  const { url, publishableKey } = supabaseEnv();
   const cookieStore = await cookies();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
