@@ -159,7 +159,9 @@ function TripForm({
             step={1}
             value={endKm}
             onChange={(event) => setEndKm(event.target.value)}
-            placeholder={String(lastOdometerKm + 20)}
+            // No placeholder. A number here reads as a suggestion, and the one
+            // figure the app must not put in anyone's head is what the odometer
+            // ought to say — it is the number the whole split is derived from.
             required
           />
           <FieldError message={state.fieldErrors?.endKm} />
