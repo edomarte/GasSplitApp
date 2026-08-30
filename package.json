@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:verify": "node scripts/verify-migrations.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "sharp": "^0.35.4",
     "supabase": "^2.116.0",
     "tailwindcss": "^4",
     "typescript": "^5",

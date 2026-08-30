@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatKm, formatMoney } from "./format";
+import { formatDay, formatInstantAsDay, formatKm, formatMoney } from "./format";
 
 const NNBSP = "\u202f";
 
@@ -63,5 +63,37 @@ describe("formatMoney", () => {
 
   it("handles a negative amount", () => {
     expect(formatMoney(-250)).toBe("-€2.50");
+  });
+});
+
+describe("formatDay", () => {
+  it("renders the day that was recorded, not the day in UTC-behind zones", () => {
+    // new Date("2026-08-30") is midnight UTC, which is still the 29th in every
+    // timezone west of Greenwich. A trip logged on the 30th must not display as
+    // the 29th to someone in New York.
+    expect(formatDay("2026-08-30")).toBe("30 Aug 2026");
+    expect(formatDay("2026-01-01")).toBe("1 Jan 2026");
+    expect(formatDay("2026-12-31")).toBe("31 Dec 2026");
+  });
+
+  it("does not shift across a month or year boundary", () => {
+    expect(formatDay("2026-03-01")).toContain("1 Mar");
+    expect(formatDay("2027-01-01")).toContain("2027");
+  });
+
+  it("returns the input unchanged when it is not a date", () => {
+    expect(formatDay("")).toBe("");
+    expect(formatDay("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("formatInstantAsDay", () => {
+  it("renders a timestamp as a calendar day", () => {
+    // en-GB abbreviates September as "Sept", not "Sep".
+    expect(formatInstantAsDay("2026-09-06T14:32:02.130Z")).toBe("6 Sept 2026");
+  });
+
+  it("returns the input unchanged when it is not a timestamp", () => {
+    expect(formatInstantAsDay("nonsense")).toBe("nonsense");
   });
 });

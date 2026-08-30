@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/auth/submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatInstantAsDay } from "@/lib/format";
 
 export function InvitePanel({ carId }: { carId: string }) {
   const [state, formAction] = useActionState<InviteState, FormData>(createInvite, {});
@@ -44,8 +45,6 @@ export function InvitePanel({ carId }: { carId: string }) {
 }
 
 function InviteResult({ invite }: { invite: NonNullable<InviteState["invite"]> }) {
-  const expires = new Date(invite.expiresAt);
-
   return (
     <div className="space-y-4 rounded-lg border bg-muted/40 p-4">
       <EmailOutcome email={invite.email} />
@@ -67,11 +66,7 @@ function InviteResult({ invite }: { invite: NonNullable<InviteState["invite"]> }
 
       <p className="text-xs text-muted-foreground">
         Works once, and expires on{" "}
-        {expires.toLocaleDateString(undefined, {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })}
+{formatInstantAsDay(invite.expiresAt)}
         . Anyone with the link can join, so share it directly.
       </p>
     </div>

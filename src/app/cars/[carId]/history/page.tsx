@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getCar } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
 import { listFills } from "@/lib/fills";
-import { formatKm, formatMoney } from "@/lib/format";
+import { formatDay, formatKm, formatMoney } from "@/lib/format";
 
 export const metadata: Metadata = { title: "History" };
 
@@ -52,7 +52,7 @@ export default async function HistoryPage({ params }: Props) {
                     <CardTitle className="flex items-baseline justify-between gap-3">
                       <span>{formatMoney(fill.totalCents, fill.currency)}</span>
                       <span className="text-sm font-normal text-muted-foreground">
-                        {formatDate(fill.filledOn)}
+                        {formatDay(fill.filledOn)}
                       </span>
                     </CardTitle>
                     <CardDescription>
@@ -104,15 +104,4 @@ export default async function HistoryPage({ params }: Props) {
       </main>
     </>
   );
-}
-
-/** Dates are stored as plain calendar days, so parse them as such. */
-function formatDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }

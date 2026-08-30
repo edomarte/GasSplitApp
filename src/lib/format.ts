@@ -41,3 +41,40 @@ export function formatMoney(cents: number, currency = "EUR"): string {
   const remainder = String(absolute % 100).padStart(2, "0");
   return `${negative ? "-" : ""}${symbol}${units}.${remainder}`;
 }
+
+/**
+ * A calendar day, as stored in a `date` column.
+ *
+ * Parsed as UTC on purpose. `new Date("2026-08-30")` is midnight UTC, which in
+ * any timezone behind it is still the 29th — so a trip logged on the 30th would
+ * display as the 29th to anyone west of Greenwich. Reading the parts and
+ * formatting in UTC keeps the day the one that was actually recorded.
+ *
+ * The locale is fixed rather than the reader's: this renders on the server,
+ * whose locale is nobody's, and a fixed one at least renders the same for
+ * everyone looking at the same car.
+ */
+export function formatDay(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** A moment in time — an invite expiry — as a calendar day. */
+export function formatInstantAsDay(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}

@@ -2,7 +2,7 @@ import { deleteTrip } from "@/app/cars/trip-actions";
 import { TripDialog } from "@/components/cars/trip-dialog";
 import { Button } from "@/components/ui/button";
 import type { CarMember } from "@/lib/cars";
-import { formatKm } from "@/lib/format";
+import { formatDay, formatKm } from "@/lib/format";
 import type { Trip } from "@/lib/trips";
 
 export function TripList({
@@ -36,7 +36,7 @@ export function TripList({
               </span>
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {formatDate(trip.drivenOn)} · {describeParticipants(trip)}
+              {formatDay(trip.drivenOn)} · {describeParticipants(trip)}
             </p>
             {trip.note ? (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{trip.note}</p>
@@ -84,16 +84,4 @@ function describeParticipants(trip: Trip): string {
 function listNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-/** Dates are stored as plain calendar days, so parse them as such. */
-function formatDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }

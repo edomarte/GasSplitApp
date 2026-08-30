@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requireUser } from "@/lib/dal";
+import { isUuid } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -64,6 +65,8 @@ export const listMyCars = cache(async (): Promise<CarSummary[]> => {
 });
 
 export const getCar = cache(async (carId: string): Promise<CarDetail | null> => {
+  if (!isUuid(carId)) return null;
+
   const user = await requireUser();
   const supabase = await createClient();
 

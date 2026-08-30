@@ -58,9 +58,14 @@ Settled: 2026-08-30.
 - **Writes that span two tables need a database function.** A trip without
   participants fails the deferred trigger at the end of the first request, so
   two PostgREST calls can never work. Same reasoning as the invite functions.
-- **Numbers shown to users go through `src/lib/format.ts`,** not
+- **Numbers and dates shown to users go through `src/lib/format.ts`,** not
   `toLocaleString()`. The server's locale is not the reader's, and "92.450 km"
-  means two different things either side of the Alps.
+  means two different things either side of the Alps. `formatDay` parses a
+  `date` column in UTC: `new Date("2026-08-30")` is midnight UTC, which is still
+  the 29th anywhere west of Greenwich.
+- **Validate an id's shape before querying with it.** Postgres raises on a
+  malformed uuid rather than returning no rows, so a typo in the address bar
+  becomes "something went wrong" instead of a 404. See `isUuid`.
 - **Settlement runs server-side in a single transaction.** Never in the client.
 - **RLS everywhere**: a user can only read rows for cars they are a member of.
 - **Auth checks go in the DAL** (`src/lib/dal.ts`), called from pages and Server
@@ -372,5 +377,29 @@ Two rules this turn added:
 - A settled fill cannot be undone. Deleting one would have to reopen the period,
   and nothing does that yet.
 
-Next step: step 6 (history polish, PWA manifest, timezones, empty and error
-states), then step 7 (deploy).
+### Step 6 — installable, and failing gracefully (done)
+
+```
+scripts/generate-icons.mjs        npm run icons — one SVG to five PNGs
+src/app/manifest.ts               installable as a standalone app
+src/app/{error,not-found}.tsx     vague on screen, specific in the console
+src/app/cars/[carId]/**/loading.tsx    skeletons for the multi-query pages
+src/lib/ids.ts                    isUuid, so a bad URL stays a 404
+src/components/skeleton.tsx
+```
+
+The icon is a fuel drop divided down the middle, generated at 192, 512, 512
+maskable, 180 for iOS and 512 for the favicon. Re-run `npm run icons` after
+changing the mark rather than editing five files.
+
+`/cars/does-not-exist` used to show "something went wrong", because Postgres
+raises on a malformed uuid instead of returning no rows. It is a 404 now, the
+same answer as a car that exists but is not yours.
+
+Still to do before this counts as a finished PWA: no service worker, so there is
+no offline behaviour at all. That is a deliberate omission — the app is useless
+without the database anyway, and a cache that serves stale kilometres would be
+worse than an error.
+
+Next step: step 7 (deploy to Vercel, then the QR codes finally point somewhere
+real and can be scanned from a phone).

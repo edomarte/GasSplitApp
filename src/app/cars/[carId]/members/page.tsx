@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getCar, listPendingInvites } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
 import { isEmailConfigured } from "@/lib/email";
+import { formatInstantAsDay } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Members" };
 
@@ -108,10 +109,7 @@ export default async function MembersPage({ params }: Props) {
                       </span>
                       <span className="block text-xs text-muted-foreground">
                         Expires{" "}
-                        {new Date(invite.expiresAt).toLocaleDateString(undefined, {
-                          day: "numeric",
-                          month: "long",
-                        })}
+{formatInstantAsDay(invite.expiresAt)}
                       </span>
                     </span>
                     {invite.createdByYou || isOwner ? (
