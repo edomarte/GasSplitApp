@@ -222,9 +222,20 @@ A test account `edomarte+gassplit@gmail.com` exists in the project. Delete it
 from Authentication → Users when it stops being useful.
 
 ### Project configuration that the code depends on
-- `mailer_autoconfirm` is **off**, so signup requires a clicked email link.
-- Google is **not** enabled yet; the button is wired but the provider is off.
+- `mailer_autoconfirm` is **on** (turned on 2026-08-30 to make testing cheap).
+  Turn it back off before launch — see "Before launch".
+- Google is **not** enabled; the button hides itself while the provider is off.
 - Redirect URLs must include `/auth/callback` and `/auth/confirm`.
+- Resend is configured, but **`noreply.gassplitapp.com` is not verified**, so
+  sends fail with 403. The pipeline itself is proven: a real invite was
+  delivered using Resend's `onboarding@resend.dev` sandbox sender. Verify the
+  domain at resend.com/domains and nothing in the code needs to change.
+
+### Test data on the live project
+- `edomarte+gassplit@gmail.com` ("Edoardo") owns **Fiat Panda**, 92 450 km.
+- `edomarte+flatmate@gmail.com` ("Giulia") is a member of it, and owns
+  **Giulia Only** — deliberately kept as a car Edoardo is not in, which is what
+  the non-member 404 check uses.
 
 ### Before launch
 - **Turn "Confirm email" back on.** It is currently off to make testing cheap.
@@ -247,5 +258,16 @@ from Authentication → Users when it stops being useful.
 - The split-math module and its Vitest suite arrive in step 5.
 - Session expiry and refresh have never been observed; the proxy is only proven
   for a fresh session.
+
+### Verified live for step 3
+Create a car, invite by link and by email, sign up through an invite, join,
+leave, rejoin, remove a member, revoke an invite, and a revoked link going dead.
+A non-member gets a 404 on both `/cars/[id]` and `/cars/[id]/members` — the same
+answer as a car that does not exist, so the id is never confirmed. All of it
+again under `next start`, not just `next dev`.
+
+Not verified: the Copy button (clipboard permissions in an automated browser),
+and scanning the QR with a real camera — the code encodes
+`NEXT_PUBLIC_SITE_URL`, which is localhost until the app is deployed.
 
 Next step: step 4 (trips, split drives, dashboard aggregation).
