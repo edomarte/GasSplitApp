@@ -56,7 +56,15 @@ export async function signInWithPassword(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    // Deliberately vague: do not reveal whether the address has an account.
+    // Telling an unconfirmed user their password is wrong sends them to reset a
+    // password that was fine. This only reaches someone who already typed the
+    // right one, so it gives nothing away to a stranger.
+    if (error.code === "email_not_confirmed") {
+      return {
+        error: "Confirm your email first — check your inbox for the link we sent.",
+      };
+    }
+    // Otherwise stay vague: do not reveal whether the address has an account.
     return { error: "Wrong email or password." };
   }
 

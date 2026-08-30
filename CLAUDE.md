@@ -138,20 +138,23 @@ Settlement, in one transaction:
 
 ## Status
 
-**Steps 1 and 2 are done.** Typecheck, lint, `next build` and `npm run db:verify`
-are all clean.
+**Steps 1 and 2 are done and verified against the live Supabase project.**
+Typecheck, lint, `next build` and `npm run db:verify` are clean.
+
+The project `pmilgglxbbtyuncwrony` (eu-west-1, Postgres 17) is linked, both
+migrations are applied, and `src/lib/database.types.ts` is generated from it.
 
 Step 1 — scaffold and auth:
 
 ```
 src/proxy.ts                      session refresh + optimistic route protection
 src/lib/env.ts                    env access; isSupabaseConfigured() gates the setup screen
-src/lib/dal.ts                    requireUser() / getOptionalUser(), the real auth gate
+src/lib/dal.ts                    requireUser() / getOptionalUser() / getMyProfile()
 src/lib/search-params.ts          firstParam() / safeNextParam()
-src/lib/supabase/{client,server,proxy}.ts
+src/lib/supabase/{client,server,proxy}.ts   all typed with Database
 src/app/auth/actions.ts           sign in, sign up, Google, password reset, sign out
 src/app/auth/callback/route.ts    OAuth code exchange
-src/app/auth/confirm/route.ts     emailed link verification (signup, recovery)
+src/app/auth/confirm/route.ts     emailed links: token_hash and PKCE code
 src/app/(auth)/{login,signup,forgot-password}/
 src/app/setup/page.tsx            shown while Supabase env vars are missing
 src/app/page.tsx                  signed-in home; cars list is still a placeholder
@@ -164,12 +167,23 @@ supabase/migrations/20260830090000_initial_schema.sql
 supabase/migrations/20260830090100_rls_policies.sql
 supabase/README.md                how to apply, verify and extend the schema
 scripts/verify-migrations.mjs     npm run db:verify — applies the SQL to PGlite
+src/lib/database.types.ts         generated; regenerate after every migration
 ```
 
-Neither has been applied to a real Supabase project yet: none exists. `db:verify`
-runs the migrations against Postgres-in-WebAssembly, which proves the SQL is
-valid and the policies isolate members correctly, but not that Supabase's own
-`auth` schema and PostgREST agree with the stub.
+### Verified end to end against the live project
+Sign up (confirmation required), emailed confirmation link, sign in, sign out,
+signed-in redirect away from `/login`, signed-out redirect to `/login?next=...`,
+wrong password, expired link. The profile trigger fires and the home page reads
+the row back through RLS. Anonymous REST reads are refused with `42501` on every
+table.
+
+A test account `edomarte+gassplit@gmail.com` exists in the project. Delete it
+from Authentication → Users when it stops being useful.
+
+### Project configuration that the code depends on
+- `mailer_autoconfirm` is **off**, so signup requires a clicked email link.
+- Google is **not** enabled yet; the button is wired but the provider is off.
+- Redirect URLs must include `/auth/callback` and `/auth/confirm`.
 
 ### Known gaps to close later
 - `/account/password` (the password-reset landing page) is referenced by

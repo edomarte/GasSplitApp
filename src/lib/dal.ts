@@ -64,3 +64,24 @@ export const requireUser = cache(async (): Promise<SessionUser> => {
   if (!user) redirect("/login");
   return user;
 });
+
+/**
+ * The caller's row in `public.profiles` — the name and avatar other members of
+ * a car see, kept in sync with auth.users by the handle_new_user trigger.
+ *
+ * Returns null if the row is missing, which should not happen: the trigger
+ * creates it on signup and the initial migration backfills anyone older.
+ */
+export const getMyProfile = cache(async () => {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, display_name, avatar_url")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+});
