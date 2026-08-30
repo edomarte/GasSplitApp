@@ -12,7 +12,7 @@ this file records the decisions taken on top of it.
 | UI | Tailwind v4 + shadcn/ui (radix base, nova preset), mobile-first |
 | Installability | PWA (manifest + icons) — "Add to Home Screen" on iOS/Android |
 | Auth | Supabase Auth: Google OAuth + email/password |
-| Database | Supabase Postgres + Drizzle ORM, with RLS |
+| Database | Supabase Postgres with RLS; `supabase-js` + generated types, no ORM |
 | Email | Resend + React Email |
 | QR codes | `qrcode` npm package, rendered server-side to a data URL |
 | Hosting | Vercel |
@@ -24,6 +24,11 @@ Settled: 2026-08-30.
 - Auth.js + Neon, and self-hosted Docker/VPS — rejected in favour of Supabase.
 - Running per-member balance with payment tracking — rejected; `fill_shares` is a
   pure historical snapshot with no payment state.
+- Drizzle ORM — adopted on 2026-08-30, dropped the same day once the schema made
+  the conflict clear: Drizzle connects over direct Postgres as a privileged role,
+  which bypasses RLS and would put authorization in two places. `supabase-js`
+  carries the caller JWT so policies apply automatically, and settlement needs a
+  Postgres function for atomicity rather than an ORM transaction.
 
 ## Non-negotiable conventions
 
@@ -175,19 +180,5 @@ valid and the policies isolate members correctly, but not that Supabase's own
 - No join-by-invite function yet. `memberships` likewise has no insert policy,
   so step 3 must add a `security definer` redeem function.
 - The split-math module and its Vitest suite arrive in step 5.
-- Whether to keep Drizzle is still open — see the note below.
-
-### Open decision: Drizzle
-
-CLAUDE.md committed to Drizzle before the schema existed. Now that RLS is the
-authorization boundary, Drizzle is a poor fit: it connects over direct Postgres
-as a privileged role, which bypasses RLS and would mean re-implementing every
-policy in TypeScript. `supabase-js` carries the caller's JWT, so policies apply
-automatically, and the one thing an ORM would buy us — a real transaction for
-settlement — is better served by a Postgres function.
-
-Recommendation: drop Drizzle, use `supabase-js` with generated types plus
-`security definer` functions for the atomic operations. Decide before step 3,
-which is the first step that writes query code.
 
 Next step: step 3 (cars, memberships, invites).
