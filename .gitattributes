@@ -1,0 +1,7 @@
+# Keep the repo LF-only: this deploys to Linux, and Windows checkouts otherwise
+# rewrite every file to CRLF and produce phantom whole-file diffs.
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.jpg binary
+*.webp binary
