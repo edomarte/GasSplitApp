@@ -36,6 +36,9 @@ Settled: 2026-08-30.
 - **Distances are whole kilometres**, stored as `integer`. Never floats.
 - **Split math lives in a pure, dependency-free module** with no DB or framework
   imports, so it is unit-testable on its own. Test it with Vitest.
+- **Every `?next=` goes through `safeRelativePath`** in `src/lib/safe-redirect.ts`.
+  Never re-implement the check inline; that is how one copy drifts and becomes an
+  open redirect.
 - **Settlement runs server-side in a single transaction.** Never in the client.
 - **RLS everywhere**: a user can only read rows for cars they are a member of.
 - **Auth checks go in the DAL** (`src/lib/dal.ts`), called from pages and Server
@@ -170,6 +173,16 @@ scripts/verify-migrations.mjs     npm run db:verify — applies the SQL to PGlit
 src/lib/database.types.ts         generated; regenerate after every migration
 ```
 
+### How to check your work
+
+```
+npm run test        vitest — pure logic (redirect safety today, split math later)
+npm run db:verify   applies migrations to PGlite and asserts structure + RLS
+npm run typecheck   tsc --noEmit
+npm run lint        eslint
+npm run build       production build; behaviour was confirmed under next start too
+```
+
 ### Verified end to end against the live project
 Sign up (confirmation required), emailed confirmation link, sign in, sign out,
 signed-in redirect away from `/login`, signed-out redirect to `/login?next=...`,
@@ -185,6 +198,16 @@ from Authentication → Users when it stops being useful.
 - Google is **not** enabled yet; the button is wired but the provider is off.
 - Redirect URLs must include `/auth/callback` and `/auth/confirm`.
 
+### Before launch
+- **Turn "Confirm email" back on.** It is currently off to make testing cheap.
+  With it off, signup answers "that email cannot be used" for an address that
+  already exists, which lets someone enumerate accounts and undercuts the vague
+  answers on sign-in and reset. With it on, Supabase returns a decoy success and
+  says nothing. No wording fixes this while it is off, because there is no email
+  to point the user at.
+- Enable Google, or leave it off: the button hides itself either way.
+- Delete the `edomarte+gassplit@gmail.com` test account.
+
 ### Known gaps to close later
 - `/account/password` (the password-reset landing page) is referenced by
   `requestPasswordReset` but not built yet.
@@ -194,5 +217,7 @@ from Authentication → Users when it stops being useful.
 - No join-by-invite function yet. `memberships` likewise has no insert policy,
   so step 3 must add a `security definer` redeem function.
 - The split-math module and its Vitest suite arrive in step 5.
+- Session expiry and refresh have never been observed; the proxy is only proven
+  for a fresh session.
 
 Next step: step 3 (cars, memberships, invites).

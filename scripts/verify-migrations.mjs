@@ -15,6 +15,8 @@ import { join } from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
 
+import { runWritePolicyChecks } from "./write-policy-checks.mjs";
+
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 
 /** Mirrors just enough of a Supabase database for the migrations to apply. */
@@ -111,7 +113,8 @@ async function main() {
 
   await runStructureChecks(db);
   const seed = await runBehaviourChecks(db);
-  await runRlsChecks(db, seed);
+  const outsider = await runRlsChecks(db, seed);
+  await runWritePolicyChecks(db, { ...seed, outsider }, { check, asUser, errorFrom });
 
   await db.close();
 
@@ -429,6 +432,8 @@ async function runRlsChecks(db, { alice, car }) {
     ]);
     check("settled trips cannot be deleted", rows.length === 0, `deleted ${rows.length}`);
   });
+
+  return mallory.id;
 }
 
 main().catch((error) => {

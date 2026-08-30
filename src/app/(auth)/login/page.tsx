@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { GoogleButton } from "@/components/auth/google-button";
+import { OrSeparator } from "@/components/auth/or-separator";
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { firstParam, safeNextParam } from "@/lib/search-params";
+import { enabledProviders } from "@/lib/auth-providers";
+import { firstParam, safeNextParam } from "@/lib/safe-redirect";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -13,6 +15,7 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export default async function LoginPage({ searchParams }: Props) {
   const params = await searchParams;
   const next = safeNextParam(params);
+  const { google } = await enabledProviders();
 
   return (
     <Card>
@@ -21,8 +24,12 @@ export default async function LoginPage({ searchParams }: Props) {
         <CardDescription>Track the kilometres, split the fuel.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GoogleButton next={next} />
-        <Separator />
+        {google ? (
+          <>
+            <GoogleButton next={next} />
+            <OrSeparator />
+          </>
+        ) : null}
         <LoginForm next={next} initialError={firstParam(params, "error")} />
         <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
@@ -32,15 +39,5 @@ export default async function LoginPage({ searchParams }: Props) {
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-function Separator() {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="h-px flex-1 bg-border" />
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
-      <span className="h-px flex-1 bg-border" />
-    </div>
   );
 }

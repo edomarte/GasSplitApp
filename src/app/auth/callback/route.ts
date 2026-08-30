@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { safeNextFromSearch } from "@/lib/safe-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 /** OAuth (Google) redirect target: swaps the one-time code for a session. */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const nextParam = searchParams.get("next") ?? "/";
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  const next = safeNextFromSearch(searchParams);
 
   if (!code) {
     const reason = searchParams.get("error_description") ?? "Sign-in was cancelled.";

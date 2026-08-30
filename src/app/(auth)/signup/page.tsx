@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { GoogleButton } from "@/components/auth/google-button";
+import { OrSeparator } from "@/components/auth/or-separator";
 import { SignupForm } from "@/components/auth/signup-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { safeNextParam } from "@/lib/search-params";
+import { enabledProviders } from "@/lib/auth-providers";
+import { safeNextParam } from "@/lib/safe-redirect";
 
 export const metadata: Metadata = { title: "Create account" };
 
@@ -12,6 +14,7 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 export default async function SignupPage({ searchParams }: Props) {
   const next = safeNextParam(await searchParams);
+  const { google } = await enabledProviders();
 
   return (
     <Card>
@@ -20,12 +23,12 @@ export default async function SignupPage({ searchParams }: Props) {
         <CardDescription>You will need one to join or create a car.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GoogleButton next={next} />
-        <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-border" />
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
+        {google ? (
+          <>
+            <GoogleButton next={next} />
+            <OrSeparator />
+          </>
+        ) : null}
         <SignupForm next={next} />
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}

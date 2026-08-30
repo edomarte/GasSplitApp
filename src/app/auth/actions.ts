@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { siteUrl } from "@/lib/env";
+import { safeRelativePath } from "@/lib/safe-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthFormState = {
@@ -36,12 +37,6 @@ function fieldErrors(error: z.ZodError): AuthFormState["fieldErrors"] {
   return out;
 }
 
-/** Only allow same-site relative paths, so `?next=` cannot become an open redirect. */
-function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
-}
-
 export async function signInWithPassword(
   _prev: AuthFormState,
   formData: FormData,
@@ -69,7 +64,7 @@ export async function signInWithPassword(
   }
 
   revalidatePath("/", "layout");
-  redirect(safeNext(formData.get("next")));
+  redirect(safeRelativePath(formData.get("next")));
 }
 
 export async function signUpWithPassword(
@@ -84,7 +79,7 @@ export async function signUpWithPassword(
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   const { displayName, email, password } = parsed.data;
-  const next = safeNext(formData.get("next"));
+  const next = safeRelativePath(formData.get("next"));
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -96,7 +91,28 @@ export async function signUpWithPassword(
     },
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    // Do not echo Supabase's message verbatim; it is written for developers and
+    // can name internals.
+    //
+    // "User already registered" is a genuine account-enumeration leak, and it
+    // undermines the deliberately vague answers on sign-in and password reset.
+    // It only appears when the project has email confirmation switched OFF: with
+    // confirmation on — the intended production setting — Supabase returns a
+    // decoy success instead and says nothing. There is no wording that is both
+    // honest and non-revealing when confirmation is off, because no email goes
+    // out to point the user at, so the fix is the project setting, not copy.
+    if (error.code === "user_already_exists" || /already registered/i.test(error.message)) {
+      return { error: "That email cannot be used. Try signing in instead." };
+    }
+    if (error.code === "weak_password") {
+      return { error: "That password is too weak. Try a longer one.", fieldErrors: {} };
+    }
+    if (error.code === "email_address_invalid") {
+      return { fieldErrors: { email: "That email address was rejected." } };
+    }
+    return { error: "Could not create the account. Try again in a moment." };
+  }
 
   // With email confirmation on, Supabase returns a user but no session.
   if (!data.session) {
@@ -108,7 +124,7 @@ export async function signUpWithPassword(
 }
 
 export async function signInWithGoogle(formData: FormData): Promise<void> {
-  const next = safeNext(formData.get("next"));
+  const next = safeRelativePath(formData.get("next"));
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
