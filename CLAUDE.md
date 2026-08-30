@@ -444,8 +444,12 @@ links to it, and stays reachable on a phone — the email is hidden below `sm`,
 so it shows "Account" there instead.
 
 ### Still open
-- SMTP credentials are not set yet, so invite and settlement notifications
-  report `skipped` rather than sending. Everything else about them is proven.
+- Notifications are proven end to end over Gmail SMTP: an invite email and a
+  three-way settlement were both delivered. Set the five `SMTP_*` / `EMAIL_FROM`
+  variables on Vercel too, or production still reports `skipped`.
+- Mail is sent from a personal Gmail account. Every invite and settlement shows
+  that address as the sender and replies go there, which suits a shared car and
+  would not suit anything larger. Gmail's limit is roughly 500 a day.
 - "Confirm email" is off, which leaks which addresses have accounts at signup.
 - Scanning a QR with a real camera is the one path never exercised; it needs a
   phone and a second screen.
