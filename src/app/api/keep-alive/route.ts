@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
   // hammered.
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
+    // Logged as an error on purpose. If the scheduler ever stops sending the
+    // right token, this endpoint goes quiet and the project pauses a week later
+    // — a delay long enough that nobody connects the two. An error in the logs
+    // is the only warning there will be.
+    console.error(
+      "[keep-alive] rejected a call with a missing or wrong token; if this is " +
+        "the scheduler, the project will pause once the week runs out",
+    );
     return NextResponse.json({ ok: false, error: "unauthorised" }, { status: 401 });
   }
 
