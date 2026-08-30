@@ -15,6 +15,9 @@ const PUBLIC_PREFIXES = [
   "/auth",
   "/join",
   "/setup",
+  // The scheduled keep-alive has no session and must not be bounced to /login,
+  // or it would never reach the database — which is the entire point of it.
+  "/api/keep-alive",
 ];
 
 function isPublic(pathname: string): boolean {

@@ -443,6 +443,21 @@ No current-password field, because the reset case has none to offer. The header
 links to it, and stays reachable on a phone — the email is hidden below `sm`,
 so it shows "Account" there instead.
 
+### Keeping the free project awake
+Supabase pauses a free project after roughly a week without **database**
+activity, and this app is used in bursts — a fortnight between fills is normal.
+`/api/keep-alive` calls `public.health()` once a day, scheduled by Vercel in
+`vercel.json`.
+
+Two things make it work that are easy to get wrong: it must be a real query
+rather than a page load, because the proxy's session check talks to the auth
+server and not to Postgres; and `/api/keep-alive` has to be in the proxy's
+public prefixes, or the request is redirected to `/login` and never reaches the
+database at all.
+
+Set `CRON_SECRET` on Vercel to have the endpoint reject anything but the
+scheduler. Optional — it reads nothing and costs one query.
+
 ### Still open
 - Notifications are proven end to end over Gmail SMTP: an invite email and a
   three-way settlement were both delivered. Set the five `SMTP_*` / `EMAIL_FROM`

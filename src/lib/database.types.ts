@@ -456,6 +456,7 @@ export type Database = {
         Args: { p_email: string; p_meta: Json }
         Returns: string
       }
+      health: { Args: never; Returns: Json }
       invite_preview: { Args: { p_token_hash: string }; Returns: Json }
       is_car_member: { Args: { p_car_id: string }; Returns: boolean }
       is_car_owner: { Args: { p_car_id: string }; Returns: boolean }
