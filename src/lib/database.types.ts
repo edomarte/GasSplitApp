@@ -440,6 +440,17 @@ export type Database = {
       }
     }
     Functions: {
+      add_trip: {
+        Args: {
+          p_car_id: string
+          p_driven_on: string
+          p_end_km: number
+          p_note?: string
+          p_participants?: string[]
+          p_start_km: number
+        }
+        Returns: Json
+      }
       derive_display_name: {
         Args: { p_email: string; p_meta: Json }
         Returns: string
@@ -449,6 +460,17 @@ export type Database = {
       is_car_owner: { Args: { p_car_id: string }; Returns: boolean }
       redeem_invite: { Args: { p_token_hash: string }; Returns: Json }
       shares_car_with: { Args: { p_user_id: string }; Returns: boolean }
+      update_trip: {
+        Args: {
+          p_driven_on: string
+          p_end_km: number
+          p_note?: string
+          p_participants?: string[]
+          p_start_km: number
+          p_trip_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

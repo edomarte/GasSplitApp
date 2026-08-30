@@ -4,11 +4,15 @@ import { notFound } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
 import { MemberAvatar } from "@/components/cars/member-avatar";
+import { PeriodSummary } from "@/components/cars/period-summary";
+import { TripDialog } from "@/components/cars/trip-dialog";
+import { TripList } from "@/components/cars/trip-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCar } from "@/lib/cars";
-import { formatKm } from "@/lib/format";
 import { requireUser } from "@/lib/dal";
+import { formatKm } from "@/lib/format";
+import { getOpenPeriod, listOpenTrips } from "@/lib/trips";
 
 type Props = { params: Promise<{ carId: string }> };
 
@@ -26,6 +30,11 @@ export default async function CarPage({ params }: Props) {
   // a car that does not exist. That is deliberate: it does not confirm the id.
   const car = await getCar(carId);
   if (!car) notFound();
+
+  const [trips, period] = await Promise.all([
+    listOpenTrips(carId),
+    getOpenPeriod(carId, car.members),
+  ]);
 
   return (
     <>
@@ -49,17 +58,44 @@ export default async function CarPage({ params }: Props) {
           </Button>
         </div>
 
-        <Card className="mt-6">
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <TripDialog
+            carId={car.id}
+            members={car.members}
+            lastOdometerKm={car.lastOdometerKm}
+            trigger={<Button className="w-full sm:w-auto">Add a trip</Button>}
+          />
+          <Button variant="secondary" className="w-full sm:w-auto" disabled>
+            Add a fuel fill
+          </Button>
+        </div>
+
+        <Card className="mt-4">
           <CardHeader>
             <CardTitle>Since the last fill</CardTitle>
             <CardDescription>
-              Who has driven how far, and what each person owes at the next fill.
+              What each person will be charged when the tank is next filled.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Logging trips arrives in the next step. Nothing to split yet.
-            </p>
+            <PeriodSummary period={period} tripCount={trips.length} />
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Trips</CardTitle>
+            <CardDescription>
+              You can edit or delete your own, until the fill is recorded.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TripList
+              carId={car.id}
+              trips={trips}
+              members={car.members}
+              lastOdometerKm={car.lastOdometerKm}
+            />
           </CardContent>
         </Card>
 
@@ -79,9 +115,7 @@ export default async function CarPage({ params }: Props) {
                   <MemberAvatar member={member} />
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {member.displayName}
-                    {member.isYou ? (
-                      <span className="text-muted-foreground"> (you)</span>
-                    ) : null}
+                    {member.isYou ? <span className="text-muted-foreground"> (you)</span> : null}
                   </span>
                   {member.role === "owner" ? (
                     <span className="text-xs text-muted-foreground">Owner</span>

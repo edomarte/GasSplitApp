@@ -43,6 +43,13 @@ Settled: 2026-08-30.
   RETURNING is evaluated before AFTER-triggers fire, so the SELECT policy sees a
   row you are not yet a member of and the whole insert fails with 42501.
   Generate the id client-side instead — see `createCar`.
+- **`select ... for update` applies the UPDATE policy, not just SELECT.** A row
+  you may read but not write vanishes from a locking read, which collapses every
+  distinct case into "not found". Read plainly, then check the UPDATE row count
+  — see `update_trip`.
+- **Writes that span two tables need a database function.** A trip without
+  participants fails the deferred trigger at the end of the first request, so
+  two PostgREST calls can never work. Same reasoning as the invite functions.
 - **Numbers shown to users go through `src/lib/format.ts`,** not
   `toLocaleString()`. The server's locale is not the reader's, and "92.450 km"
   means two different things either side of the Alps.
@@ -270,4 +277,25 @@ Not verified: the Copy button (clipboard permissions in an automated browser),
 and scanning the QR with a real camera — the code encodes
 `NEXT_PUBLIC_SITE_URL`, which is localhost until the app is deployed.
 
-Next step: step 4 (trips, split drives, dashboard aggregation).
+### Verified live for step 4
+Solo and split trips recorded from both accounts, with the arithmetic checked at
+each step: 100 km solo + 150 km split two ways gave 175/75 and 70/30, and adding
+a third trip moved it to 175/175 and 50/50. Editing a solo trip into a split
+one, and deleting a trip, both re-derived the totals and the odometer correctly.
+A member sees every trip but can only edit or delete their own.
+
+Step 4 — trips:
+
+```
+supabase/migrations/20260830160000_trip_functions.sql
+                                  add_trip() and update_trip(), INVOKER rights
+scripts/trip-function-checks.mjs
+src/lib/trips.ts                  listOpenTrips() and getOpenPeriod()
+src/app/cars/trip-actions.ts      saveTrip() and deleteTrip()
+src/components/cars/trip-dialog.tsx    add and edit, with the split picker
+src/components/cars/trip-list.tsx
+src/components/cars/period-summary.tsx
+```
+
+Next step: step 5 (fuel fills, the settlement transaction, and the split-math
+module with its Vitest suite).
