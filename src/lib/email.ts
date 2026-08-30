@@ -1,17 +1,30 @@
 import "server-only";
 
+import nodemailer, { type Transporter } from "nodemailer";
+
 export * from "@/lib/email-templates";
 import type { OutgoingEmail } from "@/lib/email-templates";
 
 /**
- * Outbound email.
+ * Outbound email, over plain SMTP.
  *
- * Resend is not configured yet, and rather than pretend otherwise this reports
- * `skipped` and logs the message to the server console. Callers surface that to
- * the user — an invite that was never delivered must not look delivered, or
+ * SMTP rather than one provider's HTTP API on purpose: Gmail, Brevo, Mailjet
+ * and Resend all speak it, so moving between them is four environment variables
+ * and no code. This app sends a handful of messages a month; there is nothing
+ * here worth coupling to a single vendor for.
+ *
+ * Without configuration it reports `skipped` and logs the message rather than
+ * failing. An invite that was never delivered must not look delivered, or
  * someone waits by an inbox for a message that does not exist.
  *
- * Set RESEND_API_KEY and EMAIL_FROM to switch it on; nothing else changes.
+ *   SMTP_HOST=smtp.gmail.com
+ *   SMTP_PORT=587
+ *   SMTP_USER=you@gmail.com
+ *   SMTP_PASSWORD=<a Google App Password, not the account password>
+ *   EMAIL_FROM=Gas Split <you@gmail.com>
+ *
+ * Gmail rewrites the From header to the authenticated account, so EMAIL_FROM
+ * must use the same address as SMTP_USER or the two will disagree.
  */
 
 export type EmailResult =
@@ -19,12 +32,58 @@ export type EmailResult =
   | { status: "skipped"; reason: "not_configured" }
   | { status: "failed"; reason: string };
 
+type SmtpConfig = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: string;
+};
+
+function smtpConfig(): SmtpConfig | null {
+  const { SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM } = process.env;
+
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD || !EMAIL_FROM) return null;
+
+  return {
+    host: SMTP_HOST,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    user: SMTP_USER,
+    password: SMTP_PASSWORD,
+    from: EMAIL_FROM,
+  };
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return smtpConfig() !== null;
+}
+
+let cached: Transporter | null = null;
+
+function transporter(config: SmtpConfig): Transporter {
+  if (cached) return cached;
+
+  cached = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    // 587 is STARTTLS, 465 is implicit TLS. Both are encrypted; only 465 wants
+    // the connection to start that way.
+    secure: config.port === 465,
+    auth: { user: config.user, pass: config.password },
+    // A slow mail server must not hold up a settlement. The money is recorded
+    // before this runs, and a failure here is reported rather than fatal.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  });
+
+  return cached;
 }
 
 export async function sendEmail(message: OutgoingEmail): Promise<EmailResult> {
-  if (!isEmailConfigured()) {
+  const config = smtpConfig();
+
+  if (!config) {
     console.info(
       `[email] not configured, would have sent to ${message.to}: ${message.subject}\n${message.text}`,
     );
@@ -32,33 +91,39 @@ export async function sendEmail(message: OutgoingEmail): Promise<EmailResult> {
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM,
-        to: [message.to],
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
-      }),
+    const info = await transporter(config).sendMail({
+      from: config.from,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
     });
 
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error(`[email] Resend rejected the message: ${response.status} ${detail}`);
-      return { status: "failed", reason: `Resend returned ${response.status}` };
+    // Accepted by the server but addressed to nobody is not a success.
+    if (info.rejected?.length) {
+      return { status: "failed", reason: "the mail server refused the address" };
     }
 
-    const body = (await response.json()) as { id?: string };
-    return { status: "sent", id: body.id ?? "unknown" };
+    return { status: "sent", id: info.messageId ?? "unknown" };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown error";
-    console.error(`[email] could not reach Resend: ${reason}`);
+    const reason = describe(error);
+    console.error(`[email] could not send to ${message.to}: ${reason}`);
     return { status: "failed", reason };
   }
 }
 
+/** Turns an SMTP failure into something a person can act on. */
+function describe(error: unknown): string {
+  if (!(error instanceof Error)) return "unknown error";
+
+  const code = (error as { code?: string }).code;
+  const response = (error as { response?: string }).response;
+
+  if (code === "EAUTH") return "the mail server rejected the username or password";
+  if (code === "ECONNECTION" || code === "ETIMEDOUT" || code === "ESOCKET") {
+    return "could not reach the mail server";
+  }
+  if (code === "EENVELOPE") return response ?? "the mail server refused the address";
+
+  return error.message;
+}

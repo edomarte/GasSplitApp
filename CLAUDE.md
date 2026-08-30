@@ -13,7 +13,7 @@ this file records the decisions taken on top of it.
 | Installability | PWA (manifest + icons) — "Add to Home Screen" on iOS/Android |
 | Auth | Supabase Auth: Google OAuth + email/password |
 | Database | Supabase Postgres with RLS; `supabase-js` + generated types, no ORM |
-| Email | Resend + React Email |
+| Email | SMTP via nodemailer — any provider, currently Gmail |
 | QR codes | `qrcode` npm package, rendered server-side to a data URL |
 | Hosting | Vercel |
 | Settlement model | **Email only** — no running ledger, no "mark as paid", no balances screen |
@@ -260,10 +260,14 @@ from Authentication → Users when it stops being useful.
   needed. Google's authorised redirect URI must be Supabase's
   `/auth/v1/callback`, not the app's `/auth/callback`.
 - Redirect URLs must include `/auth/callback` and `/auth/confirm`.
-- Resend is configured, but **`noreply.gassplitapp.com` is not verified**, so
-  sends fail with 403. The pipeline itself is proven: a real invite was
-  delivered using Resend's `onboarding@resend.dev` sandbox sender. Verify the
-  domain at resend.com/domains and nothing in the code needs to change.
+- Email goes out over **SMTP**, not a provider API, so any of Gmail, Brevo,
+  Mailjet or Resend works by changing four environment variables. Resend was
+  dropped because it requires a verified domain, and the configured one was not
+  owned. Gmail needs 2-Step Verification and an App Password; it rewrites the
+  From header to the authenticated account, so `EMAIL_FROM` must use the same
+  address as `SMTP_USER`.
+- Supabase sends its own auth email — signup confirmation, password reset, email
+  change — and never touches SMTP settings. Those worked throughout.
 
 ### Test data on the live project
 - `edomarte+gassplit@gmail.com` ("Edoardo") owns **Fiat Panda**, 92 450 km.
@@ -440,9 +444,8 @@ links to it, and stays reachable on a phone — the email is hidden below `sm`,
 so it shows "Account" there instead.
 
 ### Still open
-- Emails reach only `edomarte@gmail.com` until a domain is verified with Resend.
-  `noreply.gassplitapp.com` cannot be verified — the domain is not owned. A
-  subdomain of a domain that is owned would cost nothing.
+- SMTP credentials are not set yet, so invite and settlement notifications
+  report `skipped` rather than sending. Everything else about them is proven.
 - "Confirm email" is off, which leaks which addresses have accounts at signup.
 - Scanning a QR with a real camera is the one path never exercised; it needs a
   phone and a second screen.
