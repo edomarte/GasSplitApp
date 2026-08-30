@@ -216,6 +216,8 @@ export async function updatePassword(
     return { error: "Could not change the password. Try again." };
   }
 
-  revalidatePath("/", "layout");
+  // No revalidatePath. Nothing renders a password, so there is nothing to
+  // refresh — and refreshing would remount the form and throw away the very
+  // message this returns, which is exactly what it did the first time.
   return { notice: "Your password has been changed." };
 }
