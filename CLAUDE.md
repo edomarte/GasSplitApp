@@ -39,6 +39,13 @@ Settled: 2026-08-30.
 - **Every `?next=` goes through `safeRelativePath`** in `src/lib/safe-redirect.ts`.
   Never re-implement the check inline; that is how one copy drifts and becomes an
   open redirect.
+- **Never `insert(...).select()` a row whose visibility comes from a trigger.**
+  RETURNING is evaluated before AFTER-triggers fire, so the SELECT policy sees a
+  row you are not yet a member of and the whole insert fails with 42501.
+  Generate the id client-side instead — see `createCar`.
+- **Numbers shown to users go through `src/lib/format.ts`,** not
+  `toLocaleString()`. The server's locale is not the reader's, and "92.450 km"
+  means two different things either side of the Alps.
 - **Settlement runs server-side in a single transaction.** Never in the client.
 - **RLS everywhere**: a user can only read rows for cars they are a member of.
 - **Auth checks go in the DAL** (`src/lib/dal.ts`), called from pages and Server
@@ -170,8 +177,29 @@ supabase/migrations/20260830090000_initial_schema.sql
 supabase/migrations/20260830090100_rls_policies.sql
 supabase/README.md                how to apply, verify and extend the schema
 scripts/verify-migrations.mjs     npm run db:verify — applies the SQL to PGlite
+scripts/write-policy-checks.mjs   the write policies, run as `authenticated`
 src/lib/database.types.ts         generated; regenerate after every migration
 ```
+
+Step 3 — cars, members and invites:
+
+```
+supabase/migrations/20260830140000_invite_functions.sql
+                                  invite_preview() and redeem_invite()
+scripts/invite-function-checks.mjs
+src/lib/cars.ts                   reads; RLS does the filtering, not these
+src/lib/invite-token.ts           token generation and hashing
+src/lib/email.ts                  Resend, reporting `skipped` until configured
+src/lib/format.ts                 locale-independent number formatting
+src/app/cars/actions.ts           create/delete car, invite, redeem, leave, remove
+src/app/cars/[carId]/             car page and members page
+src/app/join/[token]/             the invite landing page
+```
+
+**Invites are single use** and expire after 7 days. The raw token exists only in
+the link; the database stores and receives its SHA-256 hash, so a leaked
+`invites` table cannot be used to join anything. `redeem_invite` locks the row,
+so two people opening the same link cannot both win.
 
 ### How to check your work
 
@@ -220,4 +248,4 @@ from Authentication → Users when it stops being useful.
 - Session expiry and refresh have never been observed; the proxy is only proven
   for a fresh session.
 
-Next step: step 3 (cars, memberships, invites).
+Next step: step 4 (trips, split drives, dashboard aggregation).

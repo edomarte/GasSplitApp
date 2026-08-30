@@ -32,7 +32,7 @@ export default async function SignupPage({ searchParams }: Props) {
         <SignupForm next={next} />
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-medium text-foreground underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>

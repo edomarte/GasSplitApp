@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: Props) {
         <LoginForm next={next} initialError={firstParam(params, "error")} />
         <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
-          <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-medium text-foreground underline-offset-4 hover:underline">
             Create one
           </Link>
         </p>
