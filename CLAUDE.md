@@ -28,7 +28,7 @@ Settled: 2026-08-30.
 ## Non-negotiable conventions
 
 - **Money is integer cents.** Never floats, never `number` euros.
-- **Distances are integers** (metres, or tenths of a km). Never floats.
+- **Distances are whole kilometres**, stored as `integer`. Never floats.
 - **Split math lives in a pure, dependency-free module** with no DB or framework
   imports, so it is unit-testable on its own. Test it with Vitest.
 - **Settlement runs server-side in a single transaction.** Never in the client.
@@ -54,20 +54,33 @@ framework code. The traps that have already bitten:
 
 ## Data model
 
+Defined in `supabase/migrations/`, which is the source of truth. See
+`supabase/README.md` for how to apply and verify it.
+
 ```
-users            id, email, display_name, avatar_url            (Supabase auth.users)
-cars             id, name, currency, initial_odometer, created_by, created_at
-memberships      car_id, user_id, role(owner|member), joined_at
-invites          id, car_id, token_hash, invited_email?, created_by, expires_at, accepted_by?
-trips            id, car_id, recorded_by, start_km, end_km, driven_on, note, fill_id?
-trip_shares      trip_id, user_id                                (one row per participant, incl. driver)
-fills            id, car_id, paid_by, total_cents, odometer?, filled_on, created_at
-fill_shares      fill_id, user_id, km_numerator, amount_cents    (immutable snapshot)
+profiles     id -> auth.users, email, display_name, avatar_url
+cars         id, name, currency, initial_odometer_km, created_by
+memberships  car_id, user_id, role(owner|member), joined_at        [pk: car_id+user_id]
+invites      id, car_id, token_hash, invited_email, created_by, expires_at, accepted_by/at
+fills        id, car_id, paid_by, total_cents, odometer_km, filled_on
+trips        id, car_id, recorded_by, start_km, end_km, distance_km (generated),
+             driven_on, note, fill_id -> fills            [fill_id null = open period]
+trip_shares  trip_id, user_id                             [one row per participant]
+fill_shares  fill_id, user_id, km_scaled, km_scale, amount_cents
 ```
 
-**Period = trips where `fill_id IS NULL`.** A fill does not delete anything: it stamps
-every open trip of that car with its own id. That closes the period (so the dashboard
-starts empty again, satisfying SPEC's "reset the trip") while keeping full history.
+Two views, both `security_invoker` so RLS applies to whoever queries them:
+`open_period_km` (per-member km for the dashboard) and `car_odometer` (the
+reading to prefill "start distance" with).
+
+**Period = trips where `fill_id IS NULL`.** A fill does not delete anything: it
+stamps every open trip of that car with its own id. That closes the period (so
+the dashboard starts empty again, satisfying SPEC's "reset the trip") while
+keeping full history.
+
+`fill_shares` stores km as the exact rational `km_scaled / km_scale`. A three-way
+split of a 100 km trip is 100/3 km, which no decimal column holds exactly;
+rounding happens once, on the money.
 
 ## Core logic
 
@@ -120,11 +133,10 @@ Settlement, in one transaction:
 
 ## Status
 
-**Step 1 (scaffold + auth) is done.** Typecheck, lint and `next build` are clean;
-the login, signup, reset and setup screens were checked in a browser at desktop and
-mobile widths.
+**Steps 1 and 2 are done.** Typecheck, lint, `next build` and `npm run db:verify`
+are all clean.
 
-What exists:
+Step 1 — scaffold and auth:
 
 ```
 src/proxy.ts                      session refresh + optimistic route protection
@@ -140,13 +152,42 @@ src/app/setup/page.tsx            shown while Supabase env vars are missing
 src/app/page.tsx                  signed-in home; cars list is still a placeholder
 ```
 
-Supabase and Resend accounts do not exist yet. `.env.local` is absent on purpose, so
-the app currently redirects everything to `/setup`, which lists the steps. Copy
-`.env.local.example` to `.env.local` to switch auth on.
+Step 2 — schema and RLS:
+
+```
+supabase/migrations/20260830090000_initial_schema.sql
+supabase/migrations/20260830090100_rls_policies.sql
+supabase/README.md                how to apply, verify and extend the schema
+scripts/verify-migrations.mjs     npm run db:verify — applies the SQL to PGlite
+```
+
+Neither has been applied to a real Supabase project yet: none exists. `db:verify`
+runs the migrations against Postgres-in-WebAssembly, which proves the SQL is
+valid and the policies isolate members correctly, but not that Supabase's own
+`auth` schema and PostgREST agree with the stub.
 
 ### Known gaps to close later
 - `/account/password` (the password-reset landing page) is referenced by
   `requestPasswordReset` but not built yet.
-- No tests yet; Vitest arrives with the split-math module in step 5.
+- No settlement function yet. `fills` and `fill_shares` deliberately have no
+  write policies, so the settlement `security definer` function in step 5 is
+  what will make recording a fill possible at all.
+- No join-by-invite function yet. `memberships` likewise has no insert policy,
+  so step 3 must add a `security definer` redeem function.
+- The split-math module and its Vitest suite arrive in step 5.
+- Whether to keep Drizzle is still open — see the note below.
 
-Next step: step 2 (schema, migrations, RLS).
+### Open decision: Drizzle
+
+CLAUDE.md committed to Drizzle before the schema existed. Now that RLS is the
+authorization boundary, Drizzle is a poor fit: it connects over direct Postgres
+as a privileged role, which bypasses RLS and would mean re-implementing every
+policy in TypeScript. `supabase-js` carries the caller's JWT, so policies apply
+automatically, and the one thing an ORM would buy us — a real transaction for
+settlement — is better served by a Postgres function.
+
+Recommendation: drop Drizzle, use `supabase-js` with generated types plus
+`security definer` functions for the atomic operations. Decide before step 3,
+which is the first step that writes query code.
+
+Next step: step 3 (cars, memberships, invites).
