@@ -63,6 +63,11 @@ Settled: 2026-08-30.
   means two different things either side of the Alps. `formatDay` parses a
   `date` column in UTC: `new Date("2026-08-30")` is midnight UTC, which is still
   the 29th anywhere west of Greenwich.
+- **`NEXT_PUBLIC_SITE_URL` must have no trailing slash**, and `normalizeOrigin`
+  enforces it. Everything builds `${siteUrl}/join/...`, so a trailing slash gives
+  `//join/...` — which Vercel redirects, hiding the problem, while Supabase
+  matches `redirectTo` against an exact allowlist and would silently refuse
+  `//auth/callback`.
 - **Validate an id's shape before querying with it.** Postgres raises on a
   malformed uuid rather than returning no rows, so a typo in the address bar
   becomes "something went wrong" instead of a 404. See `isUuid`.
@@ -401,5 +406,34 @@ no offline behaviour at all. That is a deliberate omission — the app is useles
 without the database anyway, and a cache that serves stale kilometres would be
 worse than an error.
 
-Next step: step 7 (deploy to Vercel, then the QR codes finally point somewhere
-real and can be scanned from a phone).
+### Step 7 — deployed
+
+Live at **https://gas-split-app.vercel.app**, from
+**github.com/edomarte/GasSplitApp** on every push to `main`.
+
+Vercel environment variables mirror `.env.local`, with `NEXT_PUBLIC_SITE_URL`
+set to the production domain. Note that `NEXT_PUBLIC_*` is inlined at build
+time: changing one needs a redeploy, not just a save.
+
+Two things caught on the deployed site:
+- Deployment Protection is on by default and put every route, including the
+  manifest, behind Vercel's SSO. It has to be off for Production or invite links
+  and QR codes reach nobody.
+- The first deployment URL contains a per-build hash and changes on every push.
+  Only the stable `*.vercel.app` alias belongs in `NEXT_PUBLIC_SITE_URL`.
+
+Verified in production: sign-in, the protected-route redirect with `?next=`, the
+members and history pages, invite creation with a correctly-formed link, the
+manifest and icons, and the mobile layout.
+
+### Still open
+- `/account/password`, the password-reset landing page, is referenced but not
+  built.
+- Emails reach only `edomarte@gmail.com` until a domain is verified with Resend.
+  `noreply.gassplitapp.com` cannot be verified — the domain is not owned. A
+  subdomain of a domain that is owned would cost nothing.
+- "Confirm email" is off, which leaks which addresses have accounts at signup.
+- Scanning a QR with a real camera is the one path never exercised; it needs a
+  phone and a second screen.
+- Test data lives on the production project: Fiat Panda, three `edomarte+*`
+  accounts, and Giulia's own car.
