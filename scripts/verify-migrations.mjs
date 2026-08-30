@@ -17,6 +17,10 @@ import { PGlite } from "@electric-sql/pglite";
 
 import { runInviteFunctionChecks } from "./invite-function-checks.mjs";
 import { runFormerMemberChecks } from "./former-member-checks.mjs";
+import {
+  runSettlementChecks,
+  runSettlementPropertyChecks,
+} from "./settlement-checks.mjs";
 import { runTripFunctionChecks } from "./trip-function-checks.mjs";
 import { runWritePolicyChecks } from "./write-policy-checks.mjs";
 
@@ -121,6 +125,8 @@ async function main() {
   await runInviteFunctionChecks(db, { ...seed, outsider }, { check, asUser });
   await runTripFunctionChecks(db, { ...seed, outsider }, { check, asUser });
   await runFormerMemberChecks(db, { ...seed, outsider }, { check, asUser });
+  await runSettlementChecks(db, { ...seed, outsider }, { check, asUser, errorFrom });
+  await runSettlementPropertyChecks(db, { ...seed, outsider }, { check });
 
   await db.close();
 

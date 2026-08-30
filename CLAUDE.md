@@ -36,6 +36,10 @@ Settled: 2026-08-30.
 - **Distances are whole kilometres**, stored as `integer`. Never floats.
 - **Split math lives in a pure, dependency-free module** with no DB or framework
   imports, so it is unit-testable on its own — `src/lib/apportion.ts`.
+- **Prefer named steps over one clever statement where money is involved.** The
+  first `settle_fill` computed the leftover cents with window functions and
+  handed the same spare cent to two people — 7241 paid out on a 7240 fill. The
+  explicit version can be checked a line at a time, and is worth the extra rows.
 - **Anything split between people goes through `apportion()`.** Rounding each
   share on its own loses units: three people sharing 100 km each get 33, and the
   column reads 99 under a total of 100. Largest remainder keeps the sum exact.
@@ -311,5 +315,29 @@ supabase/migrations/20260830180000_former_members.sql
 scripts/former-member-checks.mjs
 ```
 
-Next step: step 5 (fuel fills, the settlement transaction, and the split-math
-module with its Vitest suite).
+### Step 5, turn 1 — settlement (done)
+
+```
+supabase/migrations/20260830200000_settlement.sql   settle_fill(), lcm_bigint()
+scripts/settlement-checks.mjs                       23 checks + 40-case property test
+```
+
+`settle_fill` is SECURITY DEFINER and is the only way a fill can exist. It has to
+be: it stamps trips recorded by other people, which the UPDATE policy on `trips`
+forbids, and `fills`/`fill_shares` have no insert policies at all. RLS is
+bypassed inside, so every check is explicit.
+
+The arithmetic is exact end to end. Per-member distance is a sum of fractions, so
+the period is scaled by the lowest common multiple of its participant counts —
+a solo trip plus a three-way split scales by 3 — which makes every weight a whole
+number. Cents are then divided by largest remainder. Verified across 40
+amount/shape combinations: the shares always sum to exactly what was paid, and
+nobody is ever more than one cent from their exact share.
+
+Turn 2 is the UI: the fill dialog with a live preview, the history page, and the
+settlement email. `apportion()` drives the preview; the amounts people are
+actually charged are read back from `fill_shares`, so the two can never drift.
+Emails can only reach edomarte@gmail.com until a domain is verified with Resend
+— see "Before launch".
+
+Next step: step 5, turn 2 (fill dialog, history, settlement email).

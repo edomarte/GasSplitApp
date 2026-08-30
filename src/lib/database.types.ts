@@ -459,7 +459,18 @@ export type Database = {
       invite_preview: { Args: { p_token_hash: string }; Returns: Json }
       is_car_member: { Args: { p_car_id: string }; Returns: boolean }
       is_car_owner: { Args: { p_car_id: string }; Returns: boolean }
+      lcm_bigint: { Args: { a: number; b: number }; Returns: number }
       redeem_invite: { Args: { p_token_hash: string }; Returns: Json }
+      settle_fill: {
+        Args: {
+          p_car_id: string
+          p_filled_on: string
+          p_odometer_km?: number
+          p_paid_by?: string
+          p_total_cents: number
+        }
+        Returns: Json
+      }
       shares_car_with: { Args: { p_user_id: string }; Returns: boolean }
       update_trip: {
         Args: {
