@@ -13,12 +13,16 @@ export function AppHeader({ user }: { user: SessionUser }) {
           Gas Split
         </span>
         <div className="flex items-center gap-3">
+          {/* The email is too wide for a phone, but the link must still be
+              reachable there — it is the only way to change a password, and
+              this app is used mostly on phones. */}
           <Link
             href="/account/password"
-            className="hidden text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline sm:inline"
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             title="Change password"
           >
-            {user.email}
+            <span className="hidden sm:inline">{user.email}</span>
+            <span className="sm:hidden">Account</span>
           </Link>
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="sm">
