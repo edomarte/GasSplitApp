@@ -148,6 +148,5 @@ the app currently redirects everything to `/setup`, which lists the steps. Copy
 - `/account/password` (the password-reset landing page) is referenced by
   `requestPasswordReset` but not built yet.
 - No tests yet; Vitest arrives with the split-math module in step 5.
-- No git repository has been initialised.
 
 Next step: step 2 (schema, migrations, RLS).
