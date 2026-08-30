@@ -1,5 +1,6 @@
 import "server-only";
 
+import { apportion } from "@/lib/apportion";
 import { requireUser } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,13 +37,24 @@ export type MemberKm = {
   userId: string;
   displayName: string;
   isYou: boolean;
+  /** Exact distance, fractions and all. What the settlement is computed from. */
   km: number;
+  /**
+   * Whole kilometres to show. Rounded so the column adds up to the period
+   * total — rounding each one on its own would print three 33s under a 100.
+   */
+  displayKm: number;
   /** Fraction of the period's total, 0–1. Zero when nobody has driven. */
   share: number;
+  /** Drove during this period, but has since left the car. */
+  hasLeft: boolean;
 };
 
 export type OpenPeriod = {
+  /** Exact total distance driven in the period. */
   totalKm: number;
+  /** The same total, rounded — what the per-member figures add up to. */
+  displayTotalKm: number;
   perMember: MemberKm[];
 };
 
@@ -97,6 +109,10 @@ export async function listOpenTrips(carId: string): Promise<Trip[]> {
  * Members who have not driven are included with zero. Leaving them out would
  * make the dashboard look like the group is smaller than it is, and they are
  * about to owe nothing — which is worth showing, not hiding.
+ *
+ * People who drove and have since left are included too. Their distance is a
+ * fact and someone has to be charged for it; dropping them would leave the
+ * percentages summing to less than the whole, and the settlement short.
  */
 export async function getOpenPeriod(
   carId: string,
@@ -121,18 +137,57 @@ export async function getOpenPeriod(
 
   const totalKm = [...driven.values()].reduce((sum, km) => sum + km, 0);
 
-  const perMember: MemberKm[] = members
-    .map((member) => {
-      const km = driven.get(member.userId) ?? 0;
-      return {
-        userId: member.userId,
-        displayName: member.displayName,
-        isYou: member.isYou,
-        km,
-        share: totalKm > 0 ? km / totalKm : 0,
-      };
-    })
-    .sort((a, b) => b.km - a.km || a.displayName.localeCompare(b.displayName));
+  const rows: MemberKm[] = members.map((member) => ({
+    userId: member.userId,
+    displayName: member.displayName,
+    isYou: member.isYou,
+    km: driven.get(member.userId) ?? 0,
+    displayKm: 0,
+    share: 0,
+    hasLeft: false,
+  }));
 
-  return { totalKm, perMember };
+  // Anyone with distance who is no longer in the members list has left.
+  const current = new Set(members.map((m) => m.userId));
+  const strayIds = [...driven.keys()].filter((id) => !current.has(id));
+
+  if (strayIds.length > 0) {
+    const { data: leavers } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", strayIds);
+
+    const names = new Map((leavers ?? []).map((row) => [row.id, row.display_name]));
+    for (const id of strayIds) {
+      rows.push({
+        userId: id,
+        displayName: names.get(id) ?? "Former member",
+        isYou: false,
+        km: driven.get(id) ?? 0,
+        displayKm: 0,
+        share: 0,
+        hasLeft: true,
+      });
+    }
+  }
+
+  const sorted = [...rows].sort(
+    (a, b) => b.km - a.km || a.displayName.localeCompare(b.displayName),
+  );
+
+  // Round the column as a set rather than one figure at a time, so what is on
+  // screen adds up to the total printed above it.
+  const displayTotalKm = Math.round(totalKm);
+  const shown = apportion(
+    displayTotalKm,
+    sorted.map((row) => row.km),
+  );
+
+  const perMember = sorted.map((row, index) => ({
+    ...row,
+    displayKm: shown[index],
+    share: totalKm > 0 ? row.km / totalKm : 0,
+  }));
+
+  return { totalKm, displayTotalKm, perMember };
 }

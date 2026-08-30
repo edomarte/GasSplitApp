@@ -92,14 +92,28 @@ function TripForm({
   const [isSplit, setIsSplit] = useState(
     trip ? trip.participants.length > 1 : false,
   );
+
+  // Someone who took part and has since left. They stay on the trip — the drive
+  // happened — but there is no checkbox to un-tick, because re-adding them
+  // later would not be allowed.
+  const departed = trip
+    ? trip.participants.filter(
+        (p) => !p.isYou && !members.some((m) => m.userId === p.userId),
+      )
+    : [];
+
   const [selected, setSelected] = useState<string[]>(
-    trip ? trip.participants.filter((p) => !p.isYou).map((p) => p.userId) : [],
+    trip
+      ? trip.participants
+          .filter((p) => !p.isYou && members.some((m) => m.userId === p.userId))
+          .map((p) => p.userId)
+      : [],
   );
 
   const start = Number(startKm);
   const end = Number(endKm);
   const distance = Number.isFinite(start) && Number.isFinite(end) ? end - start : 0;
-  const splitCount = isSplit ? selected.length + 1 : 1;
+  const splitCount = (isSplit ? selected.length : 0) + departed.length + 1;
 
   // Warn, do not block: people forget to log a trip, and the next one then
   // legitimately starts above the last recorded reading. Starting *below* it is
@@ -185,6 +199,19 @@ function TripForm({
         <FieldError message={state.fieldErrors?.drivenOn} />
       </div>
 
+      {departed.map((person) => (
+        <input key={person.userId} type="hidden" name="participants" value={person.userId} />
+      ))}
+
+      {departed.length > 0 ? (
+        <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          {listNames(departed.map((p) => p.displayName))}{" "}
+          {departed.length === 1 ? "was" : "were"} on this drive and{" "}
+          {departed.length === 1 ? "has" : "have"} since left the car.{" "}
+          {departed.length === 1 ? "Their" : "Their"} share stays on the trip.
+        </p>
+      ) : null}
+
       {others.length > 0 ? (
         <div className="space-y-3 rounded-lg border p-3">
           <div className="flex items-center justify-between gap-3">
@@ -251,6 +278,11 @@ function TripForm({
       <SubmitButton pendingLabel="Saving...">{trip ? "Save changes" : "Save trip"}</SubmitButton>
     </form>
   );
+}
+
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** Today in the viewer's own timezone, as the date input expects it. */

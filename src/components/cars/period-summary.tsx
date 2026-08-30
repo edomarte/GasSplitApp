@@ -26,7 +26,7 @@ export function PeriodSummary({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{formatKm(period.totalKm)}</span> driven
+        <span className="font-medium text-foreground">{formatKm(period.displayTotalKm)}</span> driven
         across {tripCount === 1 ? "one trip" : `${tripCount} trips`}.
       </p>
 
@@ -37,9 +37,12 @@ export function PeriodSummary({
               <span className="min-w-0 truncate">
                 {member.displayName}
                 {member.isYou ? <span className="text-muted-foreground"> (you)</span> : null}
+                {member.hasLeft ? (
+                  <span className="text-muted-foreground"> (left the car)</span>
+                ) : null}
               </span>
               <span className="shrink-0 tabular-nums">
-                {formatKm(member.km)}
+                {formatKm(member.displayKm)}
                 <span className="ml-2 text-muted-foreground">
                   {Math.round(member.share * 100)}%
                 </span>

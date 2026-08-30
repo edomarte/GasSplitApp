@@ -451,6 +451,7 @@ export type Database = {
         }
         Returns: Json
       }
+      appears_in_your_car: { Args: { p_user_id: string }; Returns: boolean }
       derive_display_name: {
         Args: { p_email: string; p_meta: Json }
         Returns: string

@@ -35,7 +35,11 @@ Settled: 2026-08-30.
 - **Money is integer cents.** Never floats, never `number` euros.
 - **Distances are whole kilometres**, stored as `integer`. Never floats.
 - **Split math lives in a pure, dependency-free module** with no DB or framework
-  imports, so it is unit-testable on its own. Test it with Vitest.
+  imports, so it is unit-testable on its own — `src/lib/apportion.ts`.
+- **Anything split between people goes through `apportion()`.** Rounding each
+  share on its own loses units: three people sharing 100 km each get 33, and the
+  column reads 99 under a total of 100. Largest remainder keeps the sum exact.
+  Used for kilometres on screen and for cents at settlement.
 - **Every `?next=` goes through `safeRelativePath`** in `src/lib/safe-redirect.ts`.
   Never re-implement the check inline; that is how one copy drifts and becomes an
   open redirect.
@@ -203,6 +207,12 @@ src/app/cars/[carId]/             car page and members page
 src/app/join/[token]/             the invite landing page
 ```
 
+**A member who leaves keeps the kilometres they drove.** `trip_shares` points at
+`profiles`, not `memberships`, and the distance is a fact someone has to be
+charged for. `appears_in_your_car()` keeps their name readable to the group, the
+dashboard marks them "(left the car)", and `update_trip` lets them stay on a trip
+they were on without letting anyone new be added.
+
 **Invites are single use** and expire after 7 days. The raw token exists only in
 the link; the database stores and receives its SHA-256 hash, so a leaked
 `invites` table cannot be used to join anything. `redeem_invite` locks the row,
@@ -278,11 +288,12 @@ and scanning the QR with a real camera — the code encodes
 `NEXT_PUBLIC_SITE_URL`, which is localhost until the app is deployed.
 
 ### Verified live for step 4
-Solo and split trips recorded from both accounts, with the arithmetic checked at
-each step: 100 km solo + 150 km split two ways gave 175/75 and 70/30, and adding
-a third trip moved it to 175/175 and 50/50. Editing a solo trip into a split
-one, and deleting a trip, both re-derived the totals and the odometer correctly.
-A member sees every trip but can only edit or delete their own.
+Solo, two-way and three-way trips recorded from three accounts, with the
+arithmetic checked at every step. Editing a solo trip into a split one, deleting
+a trip, and back-dating one all re-derived the totals and the odometer. A member
+sees every trip but can only edit or delete their own. Also checked in the
+browser: the end-before-start error, the "starts below the last reading" warning
+in the case it is meant for, and the trip routes under `next start`.
 
 Step 4 — trips:
 
@@ -295,6 +306,9 @@ src/app/cars/trip-actions.ts      saveTrip() and deleteTrip()
 src/components/cars/trip-dialog.tsx    add and edit, with the split picker
 src/components/cars/trip-list.tsx
 src/components/cars/period-summary.tsx
+src/lib/apportion.ts              largest remainder; used for km now, cents in step 5
+supabase/migrations/20260830180000_former_members.sql
+scripts/former-member-checks.mjs
 ```
 
 Next step: step 5 (fuel fills, the settlement transaction, and the split-math
