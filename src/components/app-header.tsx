@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { signOut } from "@/app/auth/actions";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import type { SessionUser } from "@/lib/dal";
 
@@ -12,7 +13,8 @@ export function AppHeader({ user }: { user: SessionUser }) {
           <span aria-hidden="true">⛽</span>
           Gas Split
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
+          <ThemeToggle />
           {/* The email is too wide for a phone, but the link must still be
               reachable there — it is the only way to change a password, and
               this app is used mostly on phones. */}

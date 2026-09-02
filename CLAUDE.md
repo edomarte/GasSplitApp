@@ -10,6 +10,7 @@ this file records the decisions taken on top of it.
 |---|---|
 | App framework | Next.js 16 (App Router, Turbopack) + TypeScript |
 | UI | Tailwind v4 + shadcn/ui (radix base, nova preset), mobile-first |
+| Theme | Light and dark via next-themes, defaulting to the device |
 | Installability | PWA (manifest + icons) — "Add to Home Screen" on iOS/Android |
 | Auth | Supabase Auth: Google OAuth + email/password |
 | Database | Supabase Postgres with RLS; `supabase-js` + generated types, no ORM |
@@ -457,6 +458,22 @@ database at all.
 
 Set `CRON_SECRET` on Vercel to have the endpoint reject anything but the
 scheduler. Optional — it reads nothing and costs one query.
+
+### Light and dark
+`next-themes` puts `.dark` on `<html>`, which is what the `dark:` variant in
+`globals.css` already keyed off — both palettes existed from the shadcn preset
+and nothing was applying them. The default is `system`, and the header button
+cycles system → light → dark, naming the next state in its label so the cycle
+is not a guess.
+
+The provider injects a script that sets the class before first paint. Without
+it, a reader who chose dark gets a white flash on every navigation.
+
+Verified that a stored choice survives a reload and overrides the device, and
+that `system` picks the right theme on load with the device set either way. Not
+verified: reacting to the OS theme changing *during* a session — DevTools
+emulation changes what the media query reports without firing its `change`
+event, so there was nothing to observe.
 
 ### Still open
 - Notifications are proven end to end over Gmail SMTP: an invite email and a
