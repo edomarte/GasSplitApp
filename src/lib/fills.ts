@@ -40,6 +40,14 @@ export type Fill = {
   yourAmountCents: number;
 };
 
+/**
+ * A cap, not pagination. A car reaching this many fills is years of use, and an
+ * uncapped list is the kind of thing that is fine until suddenly it is a slow
+ * page and a bandwidth bill. Worth revisiting as real pagination if anyone ever
+ * gets near it.
+ */
+const MAX_FILLS = 100;
+
 export async function listFills(carId: string, currency: string): Promise<Fill[]> {
   const user = await requireUser();
   const supabase = await createClient();
@@ -54,7 +62,8 @@ export async function listFills(carId: string, currency: string): Promise<Fill[]
     )
     .eq("car_id", carId)
     .order("filled_on", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(MAX_FILLS);
 
   if (error) throw error;
 
@@ -100,8 +109,39 @@ export async function listFills(carId: string, currency: string): Promise<Fill[]
   });
 }
 
-/** The most recent fill, for the "last fill" line on the car page. */
-export async function getLatestFill(carId: string, currency: string): Promise<Fill | null> {
-  const fills = await listFills(carId, currency);
-  return fills[0] ?? null;
+export type LatestFill = {
+  totalCents: number;
+  paidByName: string;
+  paidByYou: boolean;
+};
+
+/**
+ * Just enough for the "since your €65.00 fill" line on the car page.
+ *
+ * This used to call listFills and take the first row, which loaded every fill a
+ * car had ever had — with each one's shares and each share's profile — to
+ * render three values in one sentence, on the most-visited page in the app. The
+ * cost grew with the car's whole history and was paid on every single view.
+ */
+export async function getLatestFill(carId: string): Promise<LatestFill | null> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("fills")
+    .select("total_cents, paid_by, profiles!fills_paid_by_fkey(display_name)")
+    .eq("car_id", carId)
+    .order("filled_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    totalCents: data.total_cents,
+    paidByName: data.profiles?.display_name ?? "A member",
+    paidByYou: data.paid_by === user.id,
+  };
 }

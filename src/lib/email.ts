@@ -70,6 +70,11 @@ function transporter(config: SmtpConfig): Transporter {
     // the connection to start that way.
     secure: config.port === 465,
     auth: { user: config.user, pass: config.password },
+    // A settlement sends one message per member, and without pooling that is a
+    // fresh TCP connection and TLS handshake each time — the slowest part of
+    // the request, repeated. One connection carries them all.
+    pool: true,
+    maxConnections: 1,
     // A slow mail server must not hold up a settlement. The money is recorded
     // before this runs, and a failure here is reported rather than fatal.
     connectionTimeout: 10_000,

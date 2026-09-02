@@ -18,9 +18,14 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Everything except Next internals and static assets. Auth routes are
-     * included on purpose so sessions refresh there too.
+     * Everything except Next internals, static assets, and the scheduled health
+     * check. Auth routes stay in on purpose, so sessions refresh there too.
+     *
+     * The health check is excluded rather than merely allowed: the proxy calls
+     * getUser() before it knows whether a route is public, so leaving it in
+     * would spend a Supabase auth round trip every day authenticating a request
+     * that has no session and wants nothing but the time.
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/keep-alive|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

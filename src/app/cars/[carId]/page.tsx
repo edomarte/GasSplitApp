@@ -36,7 +36,7 @@ export default async function CarPage({ params }: Props) {
   const [trips, period, latestFill] = await Promise.all([
     listOpenTrips(carId),
     getOpenPeriod(carId, car.members),
-    getLatestFill(carId, car.currency),
+    getLatestFill(carId),
   ]);
 
   return (
