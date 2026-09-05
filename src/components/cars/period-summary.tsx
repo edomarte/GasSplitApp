@@ -1,3 +1,4 @@
+import { apportion } from "@/lib/apportion";
 import { formatKm } from "@/lib/format";
 import type { OpenPeriod } from "@/lib/trips";
 
@@ -23,6 +24,15 @@ export function PeriodSummary({
     );
   }
 
+  // The percentages are a column of rounded figures like any other, so they go
+  // through apportion() too. Rounding each one on its own printed 57 + 22 + 22
+  // under a single period — the same fault the kilometre column was fixed for
+  // twice already, hiding one column to the right.
+  const percent = apportion(
+    100,
+    period.perMember.map((member) => member.km),
+  );
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -31,7 +41,7 @@ export function PeriodSummary({
       </p>
 
       <ul className="space-y-3">
-        {period.perMember.map((member) => (
+        {period.perMember.map((member, index) => (
           <li key={member.userId} className="space-y-1">
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="min-w-0 truncate">
@@ -43,15 +53,13 @@ export function PeriodSummary({
               </span>
               <span className="shrink-0 tabular-nums">
                 {formatKm(member.displayKm)}
-                <span className="ml-2 text-muted-foreground">
-                  {Math.round(member.share * 100)}%
-                </span>
+                <span className="ml-2 text-muted-foreground">{percent[index]}%</span>
               </span>
             </div>
             <div
               className="h-2 overflow-hidden rounded-full bg-muted"
               role="img"
-              aria-label={`${member.displayName}: ${Math.round(member.share * 100)} percent of the distance`}
+              aria-label={`${member.displayName}: ${percent[index]} percent of the distance`}
             >
               <div
                 className="h-full rounded-full bg-foreground"
