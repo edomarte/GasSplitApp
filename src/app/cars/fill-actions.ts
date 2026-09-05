@@ -43,6 +43,8 @@ const MESSAGES: Record<string, string> = {
   future_date: "That date is in the future.",
   payer_not_member: "The person who paid must be a member of this car.",
   no_trips: "There are no trips to split since the last fill.",
+  pending_proposals:
+    "A trip is still waiting to be confirmed. Those kilometres would change the split, and a settled fill cannot be reopened — settle once it is answered or withdrawn.",
 };
 
 export async function recordFill(

@@ -197,9 +197,36 @@ export async function redeemInvite(token: string): Promise<JoinResult> {
   return { status: result.status };
 }
 
+/**
+ * Nobody walks out of an open question.
+ *
+ * The DELETE policy on `memberships` refuses it too, and that is the real
+ * boundary — but a policy refusal is a silent no-op, and "nothing happened" is
+ * the worst possible answer. Checking first is only so the screen can say why.
+ */
+async function isHeldByProposal(carId: string, userId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("has_pending_proposal", {
+    p_car_id: carId,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("[cars] could not check pending proposals", error);
+    // Let the policy have the final word rather than guessing.
+    return false;
+  }
+
+  return data === true;
+}
+
 export async function leaveCar(formData: FormData): Promise<void> {
   const user = await requireUser();
   const carId = String(formData.get("carId") ?? "");
+
+  if (await isHeldByProposal(carId, user.id)) {
+    redirect(`/cars/${carId}/members?blocked=leave`);
+  }
 
   const supabase = await createClient();
   await supabase.from("memberships").delete().eq("car_id", carId).eq("user_id", user.id);
@@ -212,6 +239,10 @@ export async function removeMember(formData: FormData): Promise<void> {
   await requireUser();
   const carId = String(formData.get("carId") ?? "");
   const userId = String(formData.get("userId") ?? "");
+
+  if (await isHeldByProposal(carId, userId)) {
+    redirect(`/cars/${carId}/members?blocked=remove`);
+  }
 
   const supabase = await createClient();
   // RLS allows this only for an owner.

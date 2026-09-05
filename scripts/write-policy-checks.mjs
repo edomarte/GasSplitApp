@@ -41,10 +41,28 @@ export async function runWritePolicyChecks(db, { alice, bob, outsider }, { check
   // --- trip_shares ---------------------------------------------------------
 
   await asUser(db, alice, async () => {
-    const ok = await errorFrom(
+    const denied = await errorFrom(
       db.query(`insert into public.trip_shares (trip_id, user_id) values ($1, $2)`, [trip.id, bob]),
     );
-    check("the recorder can split a trip with a fellow member", ok === null, ok?.message);
+    // Narrowing add_trip alone would have been theatre: this one PostgREST call
+    // used to be enough to bill a co-member who was never asked.
+    check(
+      "a co-member cannot be put on a trip without agreeing to it",
+      denied !== null,
+      denied?.message ?? "the insert was accepted",
+    );
+  });
+
+  await asUser(db, alice, async () => {
+    // Removing yourself and re-adding yourself is still ordinary editing.
+    const ok = await errorFrom(
+      db.query(
+        `insert into public.trip_shares (trip_id, user_id) values ($1, $2)
+         on conflict do nothing`,
+        [trip.id, alice],
+      ),
+    );
+    check("the recorder can still put themselves on their own trip", ok === null, ok?.message);
   });
 
   await asUser(db, alice, async () => {

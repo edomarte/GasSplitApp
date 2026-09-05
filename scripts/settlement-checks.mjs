@@ -1,3 +1,5 @@
+import { asMember, recordTrip } from "./record-trip.mjs";
+
 /**
  * Settlement.
  *
@@ -28,19 +30,14 @@ export async function runSettlementChecks(
     return car.id;
   };
 
-  /** Records a trip as `who`, the way PostgREST would. */
-  const trip = async (carId, who, startKm, endKm, participants = null) => {
-    await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [who]);
-    await db.exec(`set role authenticated`);
-    try {
-      await db.query(
-        `select public.add_trip($1, $2, $3, current_date, $4::uuid[], null)`,
-        [carId, startKm, endKm, participants],
-      );
-    } finally {
-      await db.exec(`reset role`);
-    }
-  };
+  /**
+   * Records a trip as `who`, the way the app does: alone through add_trip,
+   * shared through a proposal everybody accepts. The settlement never sees the
+   * difference — it reads `trips` — but seeding it any other way would test a
+   * path the app no longer has.
+   */
+  const trip = (carId, who, startKm, endKm, participants = null) =>
+    recordTrip(db, { carId, recordedBy: who, startKm, endKm, participants });
 
   const settle = async (carId, who, cents, paidBy = null) => {
     await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [who]);
@@ -272,23 +269,27 @@ export async function runSettlementPropertyChecks(db, { alice, bob, outsider }, 
         ]);
       }
 
-      await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [alice]);
-      await db.exec(`set role authenticated`);
       let odometer = 0;
       for (const [distance, participants] of shape.legs) {
-        await db.query(
-          `select public.add_trip($1, $2, $3, current_date, $4::uuid[], null)`,
-          [car.id, odometer, odometer + distance, participants],
-        );
+        await recordTrip(db, {
+          carId: car.id,
+          recordedBy: alice,
+          startKm: odometer,
+          endKm: odometer + distance,
+          participants,
+        });
         odometer += distance;
       }
-      const {
-        rows: [{ result }],
-      } = await db.query(
-        `select public.settle_fill($1, $2, current_date, null, null) as result`,
-        [car.id, cents],
-      );
-      await db.exec(`reset role`);
+
+      const result = await asMember(db, alice, async () => {
+        const {
+          rows: [row],
+        } = await db.query(
+          `select public.settle_fill($1, $2, current_date, null, null) as result`,
+          [car.id, cents],
+        );
+        return row.result;
+      });
 
       if (result.status !== "ok") {
         failures += 1;

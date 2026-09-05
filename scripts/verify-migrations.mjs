@@ -22,6 +22,7 @@ import {
   runSettlementPropertyChecks,
 } from "./settlement-checks.mjs";
 import { runTripFunctionChecks } from "./trip-function-checks.mjs";
+import { runTripProposalChecks } from "./trip-proposal-checks.mjs";
 import { runWritePolicyChecks } from "./write-policy-checks.mjs";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
@@ -125,6 +126,7 @@ async function main() {
   await runInviteFunctionChecks(db, { ...seed, outsider }, { check, asUser });
   await runTripFunctionChecks(db, { ...seed, outsider }, { check, asUser });
   await runFormerMemberChecks(db, { ...seed, outsider }, { check, asUser });
+  await runTripProposalChecks(db, { ...seed, outsider }, { check, asUser, errorFrom });
   await runSettlementChecks(db, { ...seed, outsider }, { check, asUser, errorFrom });
   await runSettlementPropertyChecks(db, { ...seed, outsider }, { check });
 
@@ -148,6 +150,8 @@ async function runStructureChecks(db) {
     "invites",
     "memberships",
     "profiles",
+    "trip_proposal_participants",
+    "trip_proposals",
     "trip_shares",
     "trips",
   ];

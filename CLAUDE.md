@@ -18,8 +18,9 @@ this file records the decisions taken on top of it.
 | QR codes | `qrcode` npm package, rendered server-side to a data URL |
 | Hosting | Vercel |
 | Settlement model | **Email only** — no running ledger, no "mark as paid", no balances screen |
+| Consent | A trip charging anyone but its recorder is a **proposal** until they accept |
 
-Settled: 2026-08-30.
+Settled: 2026-08-30. Consent added 2026-09-05.
 
 ### Rejected alternatives (do not revisit without asking)
 - Auth.js + Neon, and self-hosted Docker/VPS — rejected in favour of Supabase.
@@ -41,6 +42,23 @@ Settled: 2026-08-30.
   first `settle_fill` computed the leftover cents with window functions and
   handed the same spare cent to two people — 7241 paid out on a 7240 fill. The
   explicit version can be checked a line at a time, and is worth the extra rows.
+- **Nobody is charged for kilometres they did not agree to.** A drive involving
+  anyone but the person filling the form is a row in `trip_proposals`, not in
+  `trips`, until every other person on it accepts. `add_trip` is therefore
+  solo-only and `update_trip` can never bring somebody new onto a trip — closing
+  one without the other leaves the consent flow as merely the polite option.
+  The third door was the `trip_shares` insert policy: it let the recorder add
+  anyone in the car with one PostgREST call, and now permits only yourself.
+- **A trip born of a proposal cannot be edited.** Otherwise the feature is
+  theatre: propose "you drove 20 km", collect the confirmation, edit it to 200.
+  `trips.proposal_id` marks them and the UPDATE policy excludes them. Deleting
+  one is still allowed — that only ever removes kilometres from somebody, it
+  cannot move them onto a person who never agreed.
+- **Nothing settles, and nobody leaves, while a proposal is pending.** Both are
+  the same rule: those kilometres may or may not belong to someone, a settled
+  fill cannot be reopened, and a member who walks out leaves a question nobody
+  can answer. An owner can withdraw anyone's proposal, so one silent member
+  cannot hold the group's money hostage.
 - **Anything split between people goes through `apportion()`.** Rounding each
   share on its own loses units: three people sharing 100 km each get 33, and the
   column reads 99 under a total of 100. Largest remainder keeps the sum exact.
@@ -105,8 +123,12 @@ memberships  car_id, user_id, role(owner|member), joined_at        [pk: car_id+u
 invites      id, car_id, token_hash, invited_email, created_by, expires_at, accepted_by/at
 fills        id, car_id, paid_by, total_cents, odometer_km, filled_on
 trips        id, car_id, recorded_by, start_km, end_km, distance_km (generated),
-             driven_on, note, fill_id -> fills            [fill_id null = open period]
+             driven_on, note, fill_id -> fills, proposal_id -> trip_proposals
+                                                       [fill_id null = open period]
 trip_shares  trip_id, user_id                             [one row per participant]
+trip_proposals              id, car_id, proposed_by, start_km, end_km, distance_km,
+                            driven_on, note, status, trip_id, resolved_by/at
+trip_proposal_participants  proposal_id, user_id, response, responded_at
 fill_shares  fill_id, user_id, km_scaled, km_scale, amount_cents
 ```
 
@@ -474,6 +496,53 @@ that `system` picks the right theme on load with the device set either way. Not
 verified: reacting to the OS theme changing *during* a session — DevTools
 emulation changes what the media query reports without firing its `change`
 event, so there was nothing to observe.
+
+### Trip proposals — consent before charging (done 2026-09-05)
+
+Somebody forgets to log a drive, so another member records it *for* them; and a
+shared drive now needs the agreement of everyone on it, which it never did
+before. Both are the same missing idea, so they are one feature.
+
+```
+supabase/migrations/20260905100000_trip_proposals.sql
+scripts/trip-proposal-checks.mjs        44 checks, wired into db:verify
+scripts/record-trip.mjs                 how every suite seeds a shared trip now
+src/lib/trip-proposals.ts               one indexed query for the dashboard card
+src/lib/proposal-notify.ts              reads the proposal back, then emails
+src/lib/email-templates.ts              four templates, each aware of the split
+src/app/cars/trip-proposal-actions.ts   respond / withdraw
+src/app/cars/trip-actions.ts            saveTrip now dispatches to propose_trip
+src/components/cars/proposal-panel.tsx  the card
+src/components/cars/trip-dialog.tsx     "Who drove?" plus the reworded split
+```
+
+**A proposal is not a trip with a status column.** `trips` is read by
+`open_period_km`, `car_odometer`, `listOpenTrips` and `settle_fill`; a flag would
+have to be remembered in all four, and forgetting one bills somebody for a drive
+they never agreed to. Separate tables mean none of the settlement arithmetic
+changed at all.
+
+**Everyone accepts, or one rejection ends it.** Dropping the rejector and
+splitting between the rest charges the remaining people *more* than they agreed
+to — 53 km each becoming 80 km each because somebody else said no.
+
+`propose_trip` has invoker rights; `respond_to_trip_proposal` and
+`cancel_trip_proposal` are SECURITY DEFINER, because accepting writes a `trips`
+row whose `recorded_by` is the proposer rather than the caller. Neither new
+table is granted UPDATE or DELETE at all, so a response cannot be forged with a
+PostgREST call.
+
+Three shapes of drive, and every screen and email distinguishes them: one person
+alone, a drive shared with whoever recorded it, and a drive between other people
+that the recorder was not on. The third is the one most likely to be wrong, so
+it is always said out loud.
+
+Two things worth remembering:
+- **`(status = 'accepted') = (trip_id is not null)` cannot hold.** Deleting the
+  trip nulls the column, and an accepted proposal whose trip was later deleted
+  is an honest state. Only the reverse must be forbidden.
+- **`add_trip` narrowed to solo was not enough on its own.** The `trip_shares`
+  insert policy was a second door onto the same abuse, and editing was a third.
 
 ### Still open
 - Notifications are proven end to end over Gmail SMTP: an invite email and a

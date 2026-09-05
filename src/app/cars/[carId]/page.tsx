@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { FillDialog } from "@/components/cars/fill-dialog";
 import { MemberAvatar } from "@/components/cars/member-avatar";
 import { PeriodSummary } from "@/components/cars/period-summary";
+import { ProposalPanel } from "@/components/cars/proposal-panel";
 import { TripDialog } from "@/components/cars/trip-dialog";
 import { TripList } from "@/components/cars/trip-list";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { getCar } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
 import { getLatestFill } from "@/lib/fills";
 import { formatKm, formatMoney } from "@/lib/format";
+import { listPendingProposals } from "@/lib/trip-proposals";
 import { getOpenPeriod, listOpenTrips } from "@/lib/trips";
 
 type Props = { params: Promise<{ carId: string }> };
@@ -33,11 +35,16 @@ export default async function CarPage({ params }: Props) {
   const car = await getCar(carId);
   if (!car) notFound();
 
-  const [trips, period, latestFill] = await Promise.all([
+  const [trips, period, latestFill, proposals] = await Promise.all([
     listOpenTrips(carId),
     getOpenPeriod(carId, car.members),
     getLatestFill(carId),
+    listPendingProposals(carId),
   ]);
+
+  // Kilometres that may or may not belong to somebody. Settling around them
+  // would bill the wrong split, and a settled fill cannot be reopened.
+  const blockedBy = proposals.length;
 
   return (
     <>
@@ -73,18 +80,38 @@ export default async function CarPage({ params }: Props) {
             lastOdometerKm={car.lastOdometerKm}
             trigger={<Button className="w-full sm:w-auto">Add a trip</Button>}
           />
-          <FillDialog
-            carId={car.id}
-            currency={car.currency}
-            period={period}
-            lastOdometerKm={car.lastOdometerKm}
-            trigger={
-              <Button variant="secondary" className="w-full sm:w-auto">
-                Add a fuel fill
-              </Button>
-            }
-          />
+          {blockedBy > 0 ? (
+            <Button variant="secondary" className="w-full sm:w-auto" disabled>
+              Add a fuel fill
+            </Button>
+          ) : (
+            <FillDialog
+              carId={car.id}
+              currency={car.currency}
+              period={period}
+              lastOdometerKm={car.lastOdometerKm}
+              trigger={
+                <Button variant="secondary" className="w-full sm:w-auto">
+                  Add a fuel fill
+                </Button>
+              }
+            />
+          )}
         </div>
+
+        {blockedBy > 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {blockedBy === 1 ? "A trip is" : `${blockedBy} trips are`} waiting to be confirmed, so
+            the fill would be split on figures that may still change. Answer or withdraw{" "}
+            {blockedBy === 1 ? "it" : "them"} first.
+          </p>
+        ) : null}
+
+        <ProposalPanel
+          carId={car.id}
+          proposals={proposals}
+          isOwner={car.yourRole === "owner"}
+        />
 
         <Card className="mt-4">
           <CardHeader>

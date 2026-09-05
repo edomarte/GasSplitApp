@@ -1,3 +1,5 @@
+import { recordTrip } from "./record-trip.mjs";
+
 /**
  * Recording and editing trips.
  *
@@ -56,24 +58,31 @@ export async function runTripFunctionChecks(db, { alice, bob, outsider }, { chec
   });
 
   // asUser rolls back, so commit the seed data this run needs.
-  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [alice]);
-  await db.exec(`set role authenticated`);
-  const {
-    rows: [{ result: solo }],
-  } = await db.query(
-    `select public.add_trip($1, 1000, 1100, current_date, null, null) as result`,
-    [car.id],
-  );
+  const solo = await recordTrip(db, {
+    carId: car.id,
+    recordedBy: alice,
+    startKm: 1000,
+    endKm: 1100,
+  });
   soloTripId = solo.trip_id;
 
-  const {
-    rows: [{ result: split }],
-  } = await db.query(
-    `select public.add_trip($1, 1100, 1200, current_date, array[$2]::uuid[], null) as result`,
-    [car.id, bob],
+  // A shared drive is no longer something add_trip can produce: it is a
+  // proposal that the other person accepts. recordTrip does both.
+  const split = await recordTrip(db, {
+    carId: car.id,
+    recordedBy: alice,
+    startKm: 1100,
+    endKm: 1200,
+    participants: [bob],
+  });
+  check("a split trip is recorded once it is agreed", split.status === "ok", JSON.stringify(split));
+
+  const uninvited = await addTrip(alice, [car.id, 1200, 1300, "2026-08-30", [bob], null]);
+  check(
+    "add_trip will not put anyone but the caller on a trip",
+    uninvited.status === "needs_confirmation",
+    JSON.stringify(uninvited),
   );
-  check("a split trip is recorded", split.status === "ok", JSON.stringify(split));
-  await db.exec(`reset role`);
 
   const { rows: splitShares } = await db.query(
     `select user_id from public.trip_shares where trip_id = $1 order by user_id`,
@@ -122,7 +131,7 @@ export async function runTripFunctionChecks(db, { alice, bob, outsider }, { chec
   const stranger = await addTrip(alice, [car.id, 1200, 1300, "2026-08-30", [outsider], null]);
   check(
     "a trip cannot be split with someone outside the car",
-    stranger.status === "not_all_members",
+    stranger.status === "needs_confirmation",
     JSON.stringify(stranger),
   );
 
@@ -156,6 +165,22 @@ export async function runTripFunctionChecks(db, { alice, bob, outsider }, { chec
       `select public.update_trip($1, 1000, 1300, current_date, array[$2]::uuid[], 'Longer') as result`,
       [soloTripId, bob],
     );
+    // Editing was the other way to charge somebody quietly: record a solo trip,
+    // then add them to it afterwards.
+    check(
+      "nobody new can be brought onto a trip by editing it",
+      result.status === "needs_confirmation",
+      JSON.stringify(result),
+    );
+  });
+
+  await asUser(db, alice, async () => {
+    const {
+      rows: [{ result }],
+    } = await db.query(
+      `select public.update_trip($1, 1000, 1300, current_date, null, 'Longer') as result`,
+      [soloTripId],
+    );
     check("the recorder can edit their own trip", result.status === "ok", JSON.stringify(result));
 
     const { rows: shares } = await db.query(
@@ -163,9 +188,9 @@ export async function runTripFunctionChecks(db, { alice, bob, outsider }, { chec
       [soloTripId],
     );
     check(
-      "editing replaces the participants rather than appending",
-      shares.length === 2,
-      `got ${shares.length}`,
+      "a solo trip stays solo through an edit",
+      shares.length === 1 && shares[0].user_id === alice,
+      JSON.stringify(shares.map((r) => r.user_id)),
     );
 
     const { rows: rows2 } = await db.query(

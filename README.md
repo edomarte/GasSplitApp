@@ -7,6 +7,10 @@ Log a trip by its odometer readings, mark it as shared if someone came along,
 and when the tank is filled the app closes the period, works out what each
 person owes the payer, and emails them.
 
+Nobody is charged for kilometres they did not agree to. A drive involving anyone
+but the person recording it — a trip logged on somebody's behalf, or one shared
+between several people — is a request until every other person on it confirms.
+
 ## How it works
 
 A **period** is every trip since the last fill. Recording a fill does not delete
@@ -71,4 +75,4 @@ reversed and why.
 ## Stack
 
 Next.js 16 (App Router) · Supabase (Postgres, Auth, RLS) · Tailwind and
-shadcn/ui · Resend · deployed on Vercel.
+shadcn/ui · nodemailer over SMTP · deployed on Vercel.

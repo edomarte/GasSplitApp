@@ -1,3 +1,5 @@
+import { recordTrip } from "./record-trip.mjs";
+
 /**
  * Departed members, and splits that do not divide evenly.
  *
@@ -34,11 +36,13 @@ export async function runFormerMemberChecks(db, { alice, bob, outsider }, { chec
 
   // --- a three-way split, which does not divide evenly ----------------------
 
-  await asMember(
-    alice,
-    `select public.add_trip($1, 0, 100, current_date, array[$2, $3]::uuid[], null) as result`,
-    [car.id, bob, outsider],
-  );
+  await recordTrip(db, {
+    carId: car.id,
+    recordedBy: alice,
+    startKm: 0,
+    endKm: 100,
+    participants: [bob, outsider],
+  });
 
   const { rows: threeWay } = await db.query(
     `select user_id, km from public.open_period_km where car_id = $1`,
@@ -102,8 +106,34 @@ export async function runFormerMemberChecks(db, { alice, bob, outsider }, { chec
   // --- editing a trip a departed member was on ------------------------------
 
   const {
-    rows: [trip],
+    rows: [agreed],
   } = await db.query(`select id from public.trips where car_id = $1 limit 1`, [car.id]);
+
+  const frozen = await asMember(
+    alice,
+    `select public.update_trip($1, 0, 150, current_date, array[$2, $3]::uuid[], null) as result`,
+    [agreed.id, bob, outsider],
+  );
+  check(
+    "a trip everyone agreed to cannot be edited afterwards",
+    frozen?.status === "from_proposal",
+    JSON.stringify(frozen),
+  );
+
+  // Trips recorded before consent existed are still editable, and still have to
+  // keep whoever is already on them. This is the shape of the rows already in
+  // the production database, so the path stays covered.
+  const legacy = "44444444-4444-4444-4444-444444444444";
+  await db.exec(`
+    begin;
+    insert into public.trips (id, car_id, recorded_by, start_km, end_km, driven_on)
+    values ('${legacy}', '${car.id}', '${alice}', 200, 300, current_date);
+    insert into public.trip_shares (trip_id, user_id) values
+      ('${legacy}', '${alice}'), ('${legacy}', '${bob}'), ('${legacy}', '${outsider}');
+    commit;
+  `);
+
+  const trip = { id: legacy };
 
   const kept = await asMember(
     alice,
@@ -139,7 +169,7 @@ export async function runFormerMemberChecks(db, { alice, bob, outsider }, { chec
   );
   check(
     "someone who never drove still cannot be added to a trip",
-    refused?.status === "not_all_members",
+    refused?.status === "needs_confirmation",
     JSON.stringify(refused),
   );
 
