@@ -43,12 +43,11 @@ export function TripList({
             ) : null}
           </div>
 
-          {trip.isYours ? (
+          {trip.isYours || trip.youAreOnIt ? (
             <div className="flex shrink-0 items-center">
               {/* A trip everyone confirmed is frozen: editing it would change
-                  what they agreed to. Deleting only ever takes kilometres
-                  away, so that stays. */}
-              {trip.fromProposal ? null : (
+                  what they agreed to. And only its author could ever edit it. */}
+              {trip.isYours && !trip.confirmed ? (
                 <TripDialog
                   carId={carId}
                   members={members}
@@ -60,7 +59,10 @@ export function TripList({
                     </Button>
                   }
                 />
-              )}
+              ) : null}
+              {/* Deleting is open to anyone the trip charges, not only whoever
+                  wrote it down. Confirming somebody else's trip otherwise left
+                  you carrying kilometres you had to ask them to take back. */}
               <form action={deleteTrip}>
                 <input type="hidden" name="tripId" value={trip.id} />
                 <input type="hidden" name="carId" value={carId} />

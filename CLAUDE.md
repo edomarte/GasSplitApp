@@ -49,11 +49,21 @@ Settled: 2026-08-30. Consent added 2026-09-05.
   one without the other leaves the consent flow as merely the polite option.
   The third door was the `trip_shares` insert policy: it let the recorder add
   anyone in the car with one PostgREST call, and now permits only yourself.
-- **A trip born of a proposal cannot be edited.** Otherwise the feature is
-  theatre: propose "you drove 20 km", collect the confirmation, edit it to 200.
-  `trips.proposal_id` marks them and the UPDATE policy excludes them. Deleting
-  one is still allowed — that only ever removes kilometres from somebody, it
-  cannot move them onto a person who never agreed.
+- **A confirmed trip cannot be edited, but anyone it charges can delete it.**
+  Editing would make the feature theatre: propose "you drove 20 km", collect the
+  confirmation, edit it to 200. `trips.confirmed` marks them and the UPDATE
+  policy excludes them. Deleting is the opposite case — it only ever removes
+  kilometres from the people on a trip, and can never move them onto somebody
+  who never agreed — so the DELETE policy covers the recorder, an owner, *and*
+  every participant. Without that last one, confirming somebody else's trip left
+  you carrying distance you had to ask them to take back.
+- **A resolved proposal is deleted, not marked.** Accepting, rejecting and
+  withdrawing all remove the row, so `trip_proposals` only ever holds open
+  questions and cannot grow without bound. The consequences: the marker had to
+  move onto the trip (a foreign key would have nulled itself and unfrozen it),
+  and the outcome emails are built from a payload the function returns on its
+  way out rather than read back afterwards. What is lost is any record of who
+  rejected what — the emails are the only trace.
 - **Nothing settles, and nobody leaves, while a proposal is pending.** Both are
   the same rule: those kilometres may or may not belong to someone, a settled
   fill cannot be reopened, and a member who walks out leaves a question nobody
@@ -123,11 +133,11 @@ memberships  car_id, user_id, role(owner|member), joined_at        [pk: car_id+u
 invites      id, car_id, token_hash, invited_email, created_by, expires_at, accepted_by/at
 fills        id, car_id, paid_by, total_cents, odometer_km, filled_on
 trips        id, car_id, recorded_by, start_km, end_km, distance_km (generated),
-             driven_on, note, fill_id -> fills, proposal_id -> trip_proposals
+             driven_on, note, fill_id -> fills, confirmed
                                                        [fill_id null = open period]
 trip_shares  trip_id, user_id                             [one row per participant]
 trip_proposals              id, car_id, proposed_by, start_km, end_km, distance_km,
-                            driven_on, note, status, trip_id, resolved_by/at
+                            driven_on, note        [pending only; resolved ones go]
 trip_proposal_participants  proposal_id, user_id, response, responded_at
 fill_shares  fill_id, user_id, km_scaled, km_scale, amount_cents
 ```
@@ -538,11 +548,20 @@ that the recorder was not on. The third is the one most likely to be wrong, so
 it is always said out loud.
 
 Two things worth remembering:
-- **`(status = 'accepted') = (trip_id is not null)` cannot hold.** Deleting the
-  trip nulls the column, and an accepted proposal whose trip was later deleted
-  is an honest state. Only the reverse must be forbidden.
 - **`add_trip` narrowed to solo was not enough on its own.** The `trip_shares`
   insert policy was a second door onto the same abuse, and editing was a third.
+- **`respond_to_trip_proposal` locks the proposal row.** Without it, two people
+  accepting a three-way at the same moment each see the other as still pending,
+  neither creates the trip, and the proposal is stuck forever — blocking the
+  car's fills with no way out but an owner withdrawing it. `for update` is safe
+  in a definer function owned by the schema owner, where RLS is off; the note
+  above about locking reads hiding rows applies to invoker-rights functions.
+
+Resolved proposals were kept at first, with a status column and a `trip_id`.
+That was dropped on the same day: the table only ever accumulated rows nothing
+read, and the columns existed to describe states no query asked about. What the
+schema needed from them — "everyone agreed to this trip" — is one boolean on the
+trip.
 
 ### Still open
 - Notifications are proven end to end over Gmail SMTP: an invite email and a

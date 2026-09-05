@@ -28,8 +28,10 @@ export type Trip = {
   recordedBy: string;
   recordedByName: string;
   isYours: boolean;
-  /** Agreed through a proposal, and therefore frozen. */
-  fromProposal: boolean;
+  /** Everybody on it confirmed it, and it is therefore frozen. */
+  confirmed: boolean;
+  /** You are one of the people this trip charges. */
+  youAreOnIt: boolean;
   participants: TripParticipant[];
   /** Distance charged to each participant, as an exact fraction of the trip. */
   sharePerPerson: number;
@@ -68,7 +70,7 @@ export async function listOpenTrips(carId: string): Promise<Trip[]> {
   const { data, error } = await supabase
     .from("trips")
     .select(
-      `id, start_km, end_km, distance_km, driven_on, note, recorded_by, proposal_id,
+      `id, start_km, end_km, distance_km, driven_on, note, recorded_by, confirmed,
        profiles!trips_recorded_by_fkey(display_name),
        trip_shares(user_id, profiles(display_name))`,
     )
@@ -99,7 +101,8 @@ export async function listOpenTrips(carId: string): Promise<Trip[]> {
       recordedBy: row.recorded_by,
       recordedByName: row.profiles?.display_name ?? "Member",
       isYours: row.recorded_by === user.id,
-      fromProposal: row.proposal_id !== null,
+      confirmed: row.confirmed,
+      youAreOnIt: participants.some((person) => person.isYou),
       participants,
       sharePerPerson: participants.length > 0 ? distance / participants.length : 0,
     };

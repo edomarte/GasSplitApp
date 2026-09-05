@@ -6,13 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Trips somebody is waiting to have confirmed.
  *
- * Only pending ones are ever read. A resolved proposal is history: the people
- * involved were emailed the outcome, and an accepted one is now an ordinary
- * trip in the list below it.
+ * Every row in the table is pending: answering or withdrawing one deletes it.
+ * An accepted proposal is now an ordinary trip in the list below this card, and
+ * the people involved were emailed the outcome.
  *
  * One query for the whole card, because this runs on the most-visited page in
- * the app and the free tier is what it is. The partial index on
- * (car_id) where status = 'pending' is what keeps it cheap.
+ * the app and the free tier is what it is. The index on (car_id) is what keeps
+ * it cheap, and the table stays small because nothing settled lives in it.
  */
 
 export type ProposalResponse = "pending" | "accepted" | "rejected";
@@ -58,7 +58,6 @@ export async function listPendingProposals(carId: string): Promise<TripProposal[
        trip_proposal_participants(user_id, response, profiles(display_name))`,
     )
     .eq("car_id", carId)
-    .eq("status", "pending")
     .order("created_at", { ascending: false });
 
   if (error) throw error;

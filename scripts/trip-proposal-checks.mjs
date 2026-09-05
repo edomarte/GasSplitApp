@@ -225,7 +225,7 @@ export async function runTripProposalChecks(
   const {
     rows: [born],
   } = await db.query(
-    `select recorded_by, proposal_id, distance_km from public.trips where id = $1`,
+    `select recorded_by, confirmed, distance_km from public.trips where id = $1`,
     [accepted.trip_id],
   );
   check(
@@ -233,8 +233,28 @@ export async function runTripProposalChecks(
     born.recorded_by === alice,
     born.recorded_by,
   );
-  check("the trip remembers the proposal it came from", born.proposal_id === solo.proposal_id);
+  check("the trip is marked as one everybody agreed to", born.confirmed === true);
   check("the readings survive intact", born.distance_km === 100, `got ${born.distance_km}`);
+
+  const {
+    rows: [leftover],
+  } = await db.query(
+    `select count(*)::int as n from public.trip_proposals where id = $1`,
+    [solo.proposal_id],
+  );
+  check(
+    "an answered proposal is not kept",
+    leftover.n === 0,
+    `${leftover.n} row(s) left behind`,
+  );
+
+  const {
+    rows: [orphans],
+  } = await db.query(
+    `select count(*)::int as n from public.trip_proposal_participants where proposal_id = $1`,
+    [solo.proposal_id],
+  );
+  check("and neither are the people it was asking", orphans.n === 0, `${orphans.n} left`);
 
   const {
     rows: [bobKm],
@@ -279,11 +299,36 @@ export async function runTripProposalChecks(
     );
   });
 
+  await asUser(db, carol.id, async () => {
+    // A member of the car, but not on this drive and not an owner.
+    const { rows } = await db.query(`delete from public.trips where id = $1 returning id`, [
+      accepted.trip_id,
+    ]);
+    check(
+      "somebody the trip does not charge cannot delete it",
+      rows.length === 0,
+      `deleted ${rows.length}`,
+    );
+  });
+
+  await asUser(db, bob, async () => {
+    // Bob confirmed this trip and carries all of it, but Alice wrote it down.
+    // Before, he would have had to ask her to take it back.
+    const { rows } = await db.query(`delete from public.trips where id = $1 returning id`, [
+      accepted.trip_id,
+    ]);
+    check(
+      "but whoever it charges can, even without having recorded it",
+      rows.length === 1,
+      `deleted ${rows.length}`,
+    );
+  });
+
   await asUser(db, alice, async () => {
     const { rows } = await db.query(`delete from public.trips where id = $1 returning id`, [
       accepted.trip_id,
     ]);
-    check("but it can still be deleted", rows.length === 1, `deleted ${rows.length}`);
+    check("and so can the person who recorded it", rows.length === 1, `deleted ${rows.length}`);
   });
 
   // --- everyone has to agree ------------------------------------------------
@@ -364,13 +409,14 @@ export async function runTripProposalChecks(
 
   const {
     rows: [afterReject],
-  } = await db.query(`select status, resolved_by from public.trip_proposals where id = $1`, [
-    contested.proposal_id,
-  ]);
+  } = await db.query(
+    `select count(*)::int as n from public.trip_proposals where id = $1`,
+    [contested.proposal_id],
+  );
   check(
-    "the rejection is recorded against whoever made it",
-    afterReject.status === "rejected" && afterReject.resolved_by === bob,
-    JSON.stringify(afterReject),
+    "a rejected proposal is not kept either",
+    afterReject.n === 0,
+    `${afterReject.n} row(s) left behind`,
   );
 
   // --- only the people on the drive may answer ------------------------------
@@ -472,12 +518,12 @@ export async function runTripProposalChecks(
 
   await asUser(db, bob, async () => {
     const denied = await errorFrom(
-      db.query(`update public.trip_proposals set status = 'cancelled' where id = $1`, [
+      db.query(`update public.trip_proposals set start_km = 0 where id = $1`, [
         target.proposal_id,
       ]),
     );
     check(
-      "nor can a proposal be resolved directly",
+      "nor can a proposal be rewritten under the people answering it",
       denied !== null && /permission denied|row-level security/.test(denied.message),
       denied?.message ?? "the update was accepted",
     );

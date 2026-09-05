@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/dal";
 import { isUuid } from "@/lib/ids";
-import { notifyProposalResolved, reportNotifications } from "@/lib/proposal-notify";
+import {
+  notifyProposalResolved,
+  reportNotifications,
+  type ResolvedProposal,
+} from "@/lib/proposal-notify";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -18,7 +22,11 @@ import { createClient } from "@/lib/supabase/server";
  * whoever is not looking.
  */
 
-type Resolution = { status: string; outcome?: string };
+/**
+ * The function hands the proposal back on its way out, because by the time we
+ * read this the row has been deleted — resolving one removes it.
+ */
+type Resolution = { status: string; outcome?: string; proposal?: ResolvedProposal };
 
 export async function respondToProposal(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -44,10 +52,14 @@ export async function respondToProposal(formData: FormData): Promise<void> {
 
   // 'awaiting' means somebody else has yet to answer: there is nothing to tell
   // anyone, and an email on every partial acceptance would be noise.
-  if (result.status === "ok" && (result.outcome === "accepted" || result.outcome === "rejected")) {
+  if (
+    result.status === "ok" &&
+    result.proposal &&
+    (result.outcome === "accepted" || result.outcome === "rejected")
+  ) {
     reportNotifications(
       result.outcome,
-      await notifyProposalResolved(proposalId, result.outcome, user.id),
+      await notifyProposalResolved(result.proposal, result.outcome, user.id),
     );
   } else if (result.status !== "ok") {
     console.error(`[proposals] response refused: ${JSON.stringify(result)}`);
@@ -76,11 +88,12 @@ export async function cancelProposal(formData: FormData): Promise<void> {
 
   const result = data as Resolution;
 
-  if (result.status === "ok") {
-    // Read the people back before revalidating: the proposal is resolved, but
-    // its participants are still there to be told.
-    reportNotifications("cancelled", await notifyProposalResolved(proposalId, "cancelled", user.id));
-  } else {
+  if (result.status === "ok" && result.proposal) {
+    reportNotifications(
+      "cancelled",
+      await notifyProposalResolved(result.proposal, "cancelled", user.id),
+    );
+  } else if (result.status !== "ok") {
     console.error(`[proposals] withdrawal refused: ${JSON.stringify(result)}`);
   }
 

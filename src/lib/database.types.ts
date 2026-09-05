@@ -346,11 +346,7 @@ export type Database = {
           id: string
           note: string | null
           proposed_by: string
-          resolved_at: string | null
-          resolved_by: string | null
           start_km: number
-          status: string
-          trip_id: string | null
         }
         Insert: {
           car_id: string
@@ -361,11 +357,7 @@ export type Database = {
           id?: string
           note?: string | null
           proposed_by: string
-          resolved_at?: string | null
-          resolved_by?: string | null
           start_km: number
-          status?: string
-          trip_id?: string | null
         }
         Update: {
           car_id?: string
@@ -376,11 +368,7 @@ export type Database = {
           id?: string
           note?: string | null
           proposed_by?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
           start_km?: number
-          status?: string
-          trip_id?: string | null
         }
         Relationships: [
           {
@@ -402,20 +390,6 @@ export type Database = {
             columns: ["proposed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trip_proposals_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trip_proposals_trip_id_fkey"
-            columns: ["trip_id"]
-            isOneToOne: false
-            referencedRelation: "trips"
             referencedColumns: ["id"]
           },
         ]
@@ -453,6 +427,7 @@ export type Database = {
       trips: {
         Row: {
           car_id: string
+          confirmed: boolean
           created_at: string
           distance_km: number | null
           driven_on: string
@@ -460,12 +435,12 @@ export type Database = {
           fill_id: string | null
           id: string
           note: string | null
-          proposal_id: string | null
           recorded_by: string
           start_km: number
         }
         Insert: {
           car_id: string
+          confirmed?: boolean
           created_at?: string
           distance_km?: number | null
           driven_on: string
@@ -473,12 +448,12 @@ export type Database = {
           fill_id?: string | null
           id?: string
           note?: string | null
-          proposal_id?: string | null
           recorded_by: string
           start_km: number
         }
         Update: {
           car_id?: string
+          confirmed?: boolean
           created_at?: string
           distance_km?: number | null
           driven_on?: string
@@ -486,7 +461,6 @@ export type Database = {
           fill_id?: string | null
           id?: string
           note?: string | null
-          proposal_id?: string | null
           recorded_by?: string
           start_km?: number
         }
@@ -510,13 +484,6 @@ export type Database = {
             columns: ["fill_id"]
             isOneToOne: false
             referencedRelation: "fills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trips_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "trip_proposals"
             referencedColumns: ["id"]
           },
           {
@@ -583,6 +550,7 @@ export type Database = {
       }
       appears_in_your_car: { Args: { p_user_id: string }; Returns: boolean }
       cancel_trip_proposal: { Args: { p_proposal_id: string }; Returns: Json }
+      car_has_pending_proposal: { Args: { p_car_id: string }; Returns: boolean }
       derive_display_name: {
         Args: { p_email: string; p_meta: Json }
         Returns: string
@@ -623,6 +591,7 @@ export type Database = {
         Returns: Json
       }
       shares_car_with: { Args: { p_user_id: string }; Returns: boolean }
+      trip_proposal_payload: { Args: { p_proposal_id: string }; Returns: Json }
       update_trip: {
         Args: {
           p_driven_on: string
