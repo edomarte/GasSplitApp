@@ -45,17 +45,22 @@ export function TripList({
 
           {trip.isYours ? (
             <div className="flex shrink-0 items-center">
-              <TripDialog
-                carId={carId}
-                members={members}
-                lastOdometerKm={lastOdometerKm}
-                trip={trip}
-                trigger={
-                  <Button variant="ghost" size="sm">
-                    Edit
-                  </Button>
-                }
-              />
+              {/* A trip everyone confirmed is frozen: editing it would change
+                  what they agreed to. Deleting only ever takes kilometres
+                  away, so that stays. */}
+              {trip.fromProposal ? null : (
+                <TripDialog
+                  carId={carId}
+                  members={members}
+                  lastOdometerKm={lastOdometerKm}
+                  trip={trip}
+                  trigger={
+                    <Button variant="ghost" size="sm">
+                      Edit
+                    </Button>
+                  }
+                />
+              )}
               <form action={deleteTrip}>
                 <input type="hidden" name="tripId" value={trip.id} />
                 <input type="hidden" name="carId" value={carId} />
@@ -73,7 +78,13 @@ export function TripList({
 
 /** "Alice alone" or "split with Bob — 50 km each". */
 function describeParticipants(trip: Trip): string {
-  if (trip.participants.length <= 1) {
+  // Whoever drove, which is not always whoever wrote it down: a trip recorded
+  // for somebody else has one participant, and it is not the recorder.
+  if (trip.participants.length === 1) {
+    const driver = trip.participants[0];
+    return driver.isYou ? "Yours" : driver.displayName;
+  }
+  if (trip.participants.length === 0) {
     return trip.isYours ? "Yours" : trip.recordedByName;
   }
 
