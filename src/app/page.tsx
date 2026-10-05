@@ -2,9 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
-import { CreateCarForm } from "@/components/cars/create-car-form";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { listMyCars } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -51,17 +50,9 @@ export default async function HomePage() {
           </ul>
         ) : null}
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>{cars.length === 0 ? "Add your first car" : "Add another car"}</CardTitle>
-            <CardDescription>
-              You will be its owner, and can invite the others afterwards.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreateCarForm />
-          </CardContent>
-        </Card>
+        <Button asChild className="mt-6 w-full sm:w-auto">
+          <Link href="/cars/new">{cars.length === 0 ? "Add your first car" : "Add a car"}</Link>
+        </Button>
       </main>
     </>
   );
