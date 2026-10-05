@@ -16,7 +16,7 @@ export default async function NewCarPage() {
       <AppHeader user={user} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Link href="/" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Your cars
+          ← Back
         </Link>
         <Card className="mt-4">
           <CardHeader>

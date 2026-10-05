@@ -11,7 +11,7 @@ import { TripDialog } from "@/components/cars/trip-dialog";
 import { TripList } from "@/components/cars/trip-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCar } from "@/lib/cars";
+import { getCar, listMyCars } from "@/lib/cars";
 import { requireUser } from "@/lib/dal";
 import { getLatestFill } from "@/lib/fills";
 import { formatKm, formatMoney } from "@/lib/format";
@@ -35,11 +35,12 @@ export default async function CarPage({ params }: Props) {
   const car = await getCar(carId);
   if (!car) notFound();
 
-  const [trips, period, latestFill, proposals] = await Promise.all([
+  const [trips, period, latestFill, proposals, myCars] = await Promise.all([
     listOpenTrips(carId),
     getOpenPeriod(carId, car.members),
     getLatestFill(carId),
     listPendingProposals(carId),
+    listMyCars(),
   ]);
 
   // Kilometres that may or may not belong to somebody. Settling around them
@@ -52,11 +53,13 @@ export default async function CarPage({ params }: Props) {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
+            {/* The home page redirects here when this is your only car, so
+                "All cars" would loop; offer the way to add one instead. */}
             <Link
-              href="/"
+              href={myCars.length > 1 ? "/" : "/cars/new"}
               className="text-sm text-muted-foreground underline-offset-4 hover:underline"
             >
-              ← All cars
+              {myCars.length > 1 ? "← All cars" : "+ Add a car"}
             </Link>
             <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">{car.name}</h1>
             <p className="mt-1 text-sm text-muted-foreground">

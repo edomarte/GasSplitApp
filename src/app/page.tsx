@@ -15,6 +15,8 @@ export default async function HomePage() {
   // navigation and do not gate the segments below them.
   const user = await requireUser();
   const cars = await listMyCars();
+  // With a single car there is nothing to choose between, so skip the list.
+  if (cars.length === 1) redirect(`/cars/${cars[0].id}`);
 
   return (
     <>
